@@ -1,0 +1,231 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-main: #07070B;
+    --bg-card: rgba(15, 15, 24, 0.85);
+    --border-glass: rgba(255, 255, 255, 0.1);
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: #F3F4F6;
+    font-family: 'Inter', sans-serif;
+    background-image: 
+      radial-gradient(circle at 5% 15%, rgba(138, 43, 226, 0.18) 0%, transparent 40%),
+      radial-gradient(circle at 95% 10%, rgba(0, 102, 255, 0.16) 0%, transparent 45%),
+      radial-gradient(circle at 90% 85%, rgba(255, 184, 0, 0.14) 0%, transparent 42%),
+      radial-gradient(circle at 10% 90%, rgba(255, 0, 85, 0.14) 0%, transparent 40%),
+      radial-gradient(circle at 50% 50%, rgba(0, 240, 255, 0.06) 0%, transparent 60%);
+    background-attachment: fixed;
+  }
+}
+
+/* Universal Glassmorphism & High-Impact Neon Glow Cards */
+.glass-card {
+  background: rgba(14, 14, 22, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+/* Multi-Spectrum Neon Edge on hover */
+.glass-card:hover, 
+.glass-card-hover:hover {
+  border-color: rgba(138, 43, 226, 0.6);
+  box-shadow: 0 0 35px rgba(138, 43, 226, 0.35), 0 0 15px rgba(0, 102, 255, 0.2), inset 0 0 20px rgba(138, 43, 226, 0.1);
+  transform: translateY(-2px);
+}
+
+.glass-card:active {
+  transform: scale(0.995);
+}
+
+.glass-card-selected {
+  border-color: #8A2BE2 !important;
+  box-shadow: 0 0 40px rgba(138, 43, 226, 0.5), 0 0 20px rgba(0, 102, 255, 0.3), inset 0 0 20px rgba(138, 43, 226, 0.2) !important;
+  background: rgba(22, 16, 36, 0.95) !important;
+}
+
+/* =========================================================================
+   VIBRANT DISTINCT NEON COLOR SUITES:
+   Dark Violet Neon, Dark Golden Yellow, Dark Cobalt Blue, Laser Crimson Red, Cyber Cyan, Toxic Emerald
+   ========================================================================= */
+
+/* 1. DARK VIOLET NEON */
+.neon-card-violet {
+  border: 1px solid rgba(138, 43, 226, 0.45);
+  background: linear-gradient(135deg, rgba(138, 43, 226, 0.14) 0%, rgba(14, 14, 22, 0.92) 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(138, 43, 226, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.neon-card-violet:hover, .neon-card-violet.active {
+  border-color: #A855F7 !important;
+  box-shadow: 0 0 35px rgba(168, 85, 247, 0.6), inset 0 0 20px rgba(138, 43, 226, 0.25) !important;
+  transform: translateY(-3px);
+}
+
+/* 2. DARK GOLDEN YELLOW / AMBER NEON */
+.neon-card-yellow {
+  border: 1px solid rgba(255, 184, 0, 0.45);
+  background: linear-gradient(135deg, rgba(255, 184, 0, 0.12) 0%, rgba(14, 14, 22, 0.92) 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(255, 184, 0, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.neon-card-yellow:hover, .neon-card-yellow.active {
+  border-color: #FFB800 !important;
+  box-shadow: 0 0 35px rgba(255, 184, 0, 0.6), inset 0 0 20px rgba(255, 184, 0, 0.25) !important;
+  transform: translateY(-3px);
+}
+
+/* 3. DARK COBALT / ELECTRIC BLUE NEON */
+.neon-card-blue {
+  border: 1px solid rgba(0, 102, 255, 0.45);
+  background: linear-gradient(135deg, rgba(0, 102, 255, 0.12) 0%, rgba(14, 14, 22, 0.92) 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(0, 102, 255, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.neon-card-blue:hover, .neon-card-blue.active {
+  border-color: #38BDF8 !important;
+  box-shadow: 0 0 35px rgba(0, 102, 255, 0.6), inset 0 0 20px rgba(0, 102, 255, 0.25) !important;
+  transform: translateY(-3px);
+}
+
+/* 4. HYPER CRIMSON / LASER RED NEON */
+.neon-card-red {
+  border: 1px solid rgba(255, 0, 85, 0.45);
+  background: linear-gradient(135deg, rgba(255, 0, 85, 0.12) 0%, rgba(14, 14, 22, 0.92) 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(255, 0, 85, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.neon-card-red:hover, .neon-card-red.active {
+  border-color: #FF0055 !important;
+  box-shadow: 0 0 35px rgba(255, 0, 85, 0.6), inset 0 0 20px rgba(255, 0, 85, 0.25) !important;
+  transform: translateY(-3px);
+}
+
+/* 5. CYBER LASER CYAN */
+.neon-card-cyan {
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.1) 0%, rgba(14, 14, 22, 0.92) 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(0, 240, 255, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.neon-card-cyan:hover, .neon-card-cyan.active {
+  border-color: #00F0FF !important;
+  box-shadow: 0 0 35px rgba(0, 240, 255, 0.6), inset 0 0 20px rgba(0, 240, 255, 0.25) !important;
+  transform: translateY(-3px);
+}
+
+/* 6. TOXIC MATRIX EMERALD */
+.neon-card-emerald {
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(14, 14, 22, 0.92) 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(16, 185, 129, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.neon-card-emerald:hover, .neon-card-emerald.active {
+  border-color: #10B981 !important;
+  box-shadow: 0 0 35px rgba(16, 185, 129, 0.6), inset 0 0 20px rgba(16, 185, 129, 0.25) !important;
+  transform: translateY(-3px);
+}
+
+/* Backward compatibility aliases */
+.neon-card-purple { @apply neon-card-violet; }
+.neon-card-rose { @apply neon-card-red; }
+.neon-card-amber { @apply neon-card-yellow; }
+
+/* Markdown Header Spacing and Alignment */
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Glowing Neon Drop Shadows */
+.shadow-neon-violet {
+  box-shadow: 0 0 30px rgba(138, 43, 226, 0.55), inset 0 0 15px rgba(138, 43, 226, 0.2);
+}
+
+.shadow-neon-yellow {
+  box-shadow: 0 0 30px rgba(255, 184, 0, 0.55), inset 0 0 15px rgba(255, 184, 0, 0.2);
+}
+
+.shadow-neon-blue {
+  box-shadow: 0 0 30px rgba(0, 102, 255, 0.55), inset 0 0 15px rgba(0, 102, 255, 0.2);
+}
+
+.shadow-neon-red {
+  box-shadow: 0 0 30px rgba(255, 0, 85, 0.55), inset 0 0 15px rgba(255, 0, 85, 0.2);
+}
+
+.shadow-neon-cyan {
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.5), inset 0 0 15px rgba(0, 240, 255, 0.18);
+}
+
+.shadow-neon-emerald {
+  box-shadow: 0 0 30px rgba(16, 185, 129, 0.5), inset 0 0 15px rgba(16, 185, 129, 0.18);
+}
+
+/* Glowing Text Gradients */
+.neon-text-cyber {
+  background: linear-gradient(135deg, #C084FC 0%, #38BDF8 35%, #FF0055 70%, #FFB800 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.neon-text-electric {
+  background: linear-gradient(135deg, #A855F7 0%, #0066FF 50%, #00F0FF 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.neon-text-fire {
+  background: linear-gradient(135deg, #FF0055 0%, #FF6B00 50%, #FFB800 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.neon-text-gradient {
+  background: linear-gradient(135deg, #8A2BE2 0%, #0066FF 40%, #FF0055 75%, #FFB800 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.neon-text-violet-yellow {
+  background: linear-gradient(135deg, #A855F7 0%, #0066FF 40%, #FFB800 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Custom Cyber Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #07070B;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #8A2BE2, #0066FF, #FF0055);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom, #A855F7, #38BDF8, #FFB800);
+}
+
+/* Background Cyber Grid Overlay */
+.bg-grid-cyber {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(138, 43, 226, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 102, 255, 0.07) 1px, transparent 1px);
+}
