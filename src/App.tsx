@@ -8,6 +8,7 @@ import { CreateProjectModal } from './components/projects/CreateProjectModal';
 import { AIChatDrawer } from './components/chat/AIChatDrawer';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { VersionHistoryDrawer } from './components/history/VersionHistoryDrawer';
+import { AISettingsModal } from './components/settings/AISettingsModal';
 
 import { DashboardOverview } from './components/dashboard/DashboardOverview';
 import { ModuleUpload } from './components/modules/ModuleUpload';
@@ -45,6 +46,9 @@ import { ModuleRiskEarlyWarning } from './components/modules/ModuleRiskEarlyWarn
 import { ModuleRefinementLab } from './components/modules/ModuleRefinementLab';
 import { ModuleBadReqDetector } from './components/modules/ModuleBadReqDetector';
 import { ModuleLLMEvaluationLab } from './components/modules/ModuleLLMEvaluationLab';
+import { ModuleAIModelStudio } from './components/modules/ModuleAIModelStudio';
+import { ModuleSystemDiagrams } from './components/modules/ModuleSystemDiagrams';
+import { Module3DSimulationLab } from './components/modules/Module3DSimulationLab';
 import { ModuleUserManual } from './components/modules/ModuleUserManual';
 
 const AppContent: React.FC = () => {
@@ -55,6 +59,12 @@ const AppContent: React.FC = () => {
     switch (activeTab) {
       case 'llm-eval-lab':
         return <ModuleLLMEvaluationLab />;
+      case 'ai-model-studio':
+        return <ModuleAIModelStudio />;
+      case '3d-simulations':
+        return <Module3DSimulationLab />;
+      case 'system-diagrams':
+        return <ModuleSystemDiagrams />;
       case 'dashboard':
         return <DashboardOverview />;
       case 'analytics':
@@ -127,7 +137,7 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0B0F] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black">
+    <div className="min-h-screen bg-[#0B0B0F] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black overflow-x-hidden">
       {/* Navigation Header */}
       <Navbar
         isLanding={isLandingPage}
@@ -138,12 +148,12 @@ const AppContent: React.FC = () => {
       {isLandingPage ? (
         <LandingPage onGetStarted={() => setIsLandingPage(false)} />
       ) : (
-        <div className="flex-1 flex w-full max-w-7xl mx-auto">
+        <div className="flex-1 flex w-full max-w-[1600px] mx-auto min-w-0">
           {/* Module Navigation Sidebar */}
           <Sidebar />
 
           {/* Active Module Canvas Area */}
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-full">
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto min-w-0 max-w-full">
             {renderActiveModule()}
           </main>
         </div>
@@ -155,6 +165,7 @@ const AppContent: React.FC = () => {
       <AIChatDrawer />
       <GlobalSearchModal />
       <VersionHistoryDrawer />
+      <AISettingsModal />
     </div>
   );
 };

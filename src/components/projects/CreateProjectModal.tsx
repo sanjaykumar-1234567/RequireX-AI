@@ -7,6 +7,7 @@ export const CreateProjectModal: React.FC = () => {
 
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('Online Quiz Platform');
+  const [customDomain, setCustomDomain] = useState('');
   const [description, setDescription] = useState('');
 
   if (!isCreateProjectOpen) return null;
@@ -22,14 +23,24 @@ export const CreateProjectModal: React.FC = () => {
     'Travel',
     'Library',
     'Hotel',
-    'Others'
+    'Smart Home & IoT',
+    'Autonomous Drone Delivery',
+    'Agritech & Smart Farming',
+    'Fintech Algorithmic Trading',
+    'Telemedicine & Remote Care',
+    'Energy Grid & Renewable IoT',
+    'Others / Custom Domain'
   ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    createNewProject(name, domain, description);
+    const finalDomain = (domain === 'Others / Custom Domain' || domain === 'Others') 
+      ? (customDomain.trim() || 'General Software System') 
+      : domain;
+    createNewProject(name, finalDomain, description);
     setName('');
+    setCustomDomain('');
     setDescription('');
   };
 
@@ -80,6 +91,23 @@ export const CreateProjectModal: React.FC = () => {
               ))}
             </select>
           </div>
+
+          {(domain === 'Others / Custom Domain' || domain === 'Others') && (
+            <div className="p-3 rounded-xl bg-cyan-950/30 border border-cyan-500/30 animate-fadeIn">
+              <label className="block font-semibold text-cyan-300 mb-1">Enter Custom Domain Name *</label>
+              <input
+                type="text"
+                required
+                value={customDomain}
+                onChange={e => setCustomDomain(e.target.value)}
+                placeholder="e.g. Agritech Smart Irrigation, Satellite Telemetry, Autonomous Drone Logistics"
+                className="w-full bg-black/70 border border-cyan-500/50 rounded-xl py-2 px-3 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 font-mono text-xs"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                RequireX AI dynamically synthesizes domain-specific recommendations, NFRs, test suites, and conflict models for this custom domain.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block font-semibold text-slate-300 mb-1">Project Description & Scope</label>

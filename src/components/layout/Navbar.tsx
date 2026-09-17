@@ -7,9 +7,11 @@ import {
   History, 
   UserCheck, 
   ChevronDown, 
-  FolderGit2
+  FolderGit2,
+  KeyRound
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
+import { AIConfigManager } from '../../services/aiConfig';
 
 export const Navbar: React.FC<{ onLandingClick: () => void; isLanding: boolean }> = ({ onLandingClick, isLanding }) => {
   const { 
@@ -20,19 +22,20 @@ export const Navbar: React.FC<{ onLandingClick: () => void; isLanding: boolean }
     setIsAIChatOpen, 
     setIsGlobalSearchOpen,
     setIsHistoryOpen,
+    setIsAISettingsOpen,
     userSession,
     setIsAuthModalOpen
   } = useProject();
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-[#07070B]/90 backdrop-blur-2xl">
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6 lg:px-8">
+      <div className="mx-auto flex h-20 max-w-[1600px] w-full items-center justify-between px-4 sm:px-6 lg:px-8">
         
         {/* Brand & Project Selector */}
-        <div className="flex items-center space-x-6">
+        <div className="flex items-center space-x-4 sm:space-x-6 min-w-0">
           <button 
             onClick={onLandingClick}
-            className="flex items-center space-x-3 group text-left focus:outline-none cursor-pointer"
+            className="flex items-center space-x-3 group text-left focus:outline-none cursor-pointer shrink-0"
           >
             <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 via-blue-600 to-amber-400 p-[1.5px] shadow-neon-violet">
               <div className="flex h-full w-full items-center justify-center rounded-[14px] bg-[#0A0A12] transition duration-300 group-hover:bg-opacity-80">
@@ -59,7 +62,7 @@ export const Navbar: React.FC<{ onLandingClick: () => void; isLanding: boolean }
                 <select
                   value={currentProject?.id || ''}
                   onChange={(e) => selectProject(e.target.value)}
-                  className="appearance-none bg-surface/90 hover:bg-surface border border-blue-500/40 hover:border-violet-500/60 text-slate-200 text-xs font-semibold font-mono rounded-xl px-4 py-2 pr-9 cursor-pointer focus:outline-none transition shadow-sm"
+                  className="appearance-none bg-surface/90 hover:bg-surface border border-blue-500/40 hover:border-violet-500/60 text-slate-200 text-xs font-semibold font-mono rounded-xl px-4 py-2 pr-9 cursor-pointer focus:outline-none transition shadow-sm max-w-xs truncate"
                 >
                   {projects.map(p => (
                     <option key={p.id} value={p.id} className="bg-[#0F0F18] text-slate-200 py-1">
@@ -73,7 +76,7 @@ export const Navbar: React.FC<{ onLandingClick: () => void; isLanding: boolean }
               {/* Create New Project CTA */}
               <button
                 onClick={() => setIsCreateProjectOpen(true)}
-                className="flex items-center space-x-1.5 bg-gradient-to-r from-blue-700/35 via-blue-600/30 to-cyan-500/25 hover:from-blue-600/50 hover:to-cyan-400/40 text-cyan-300 hover:text-white text-xs font-bold font-mono px-3.5 py-2 rounded-xl border border-blue-400/50 hover:border-cyan-400/70 transition shadow-neon-blue cursor-pointer"
+                className="flex items-center space-x-1.5 bg-gradient-to-r from-blue-700/35 via-blue-600/30 to-cyan-500/25 hover:from-blue-600/50 hover:to-cyan-400/40 text-cyan-300 hover:text-white text-xs font-bold font-mono px-3.5 py-2 rounded-xl border border-blue-400/50 hover:border-cyan-400/70 transition shadow-neon-blue cursor-pointer shrink-0"
               >
                 <Plus className="h-4 w-4 text-cyan-400" />
                 <span>New Project</span>
@@ -83,7 +86,7 @@ export const Navbar: React.FC<{ onLandingClick: () => void; isLanding: boolean }
         </div>
 
         {/* Global Controls & Actions */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
           {!isLanding && (
             <>
               {/* Global Search Button */}
@@ -99,19 +102,30 @@ export const Navbar: React.FC<{ onLandingClick: () => void; isLanding: boolean }
               {/* Version History Drawer Trigger */}
               <button
                 onClick={() => setIsHistoryOpen(true)}
-                className="p-2.5 text-slate-400 hover:text-amber-400 bg-surface/60 hover:bg-surface rounded-xl border border-white/10 hover:border-violet-500/40 transition relative cursor-pointer shadow-sm"
+                className="p-2.5 text-slate-400 hover:text-amber-400 bg-surface/60 hover:bg-surface rounded-xl border border-white/10 hover:border-violet-500/40 transition relative cursor-pointer shadow-sm shrink-0"
                 title="Version History & Audit Log"
               >
                 <History className="h-4 w-4" />
               </button>
 
+              {/* AI Keys Trigger */}
+              <button
+                onClick={() => setIsAISettingsOpen(true)}
+                className="flex items-center space-x-1.5 px-3 py-2 text-xs font-mono font-bold text-violet-300 hover:text-white bg-surface/70 hover:bg-surface rounded-xl border border-violet-500/40 hover:border-violet-400 transition cursor-pointer shadow-sm shrink-0"
+                title="Configure Real AI API Keys (OpenRouter, OpenAI, Claude, Gemini, DeepSeek, Groq)"
+              >
+                <KeyRound className="h-4 w-4 text-violet-400" />
+                <span className="hidden sm:inline">AI Keys</span>
+                <span className={`h-2 w-2 rounded-full ${AIConfigManager.hasAnyApiKey() ? 'bg-emerald-400 shadow-neon-emerald' : 'bg-slate-600'}`} />
+              </button>
+
               {/* AI Copilot Trigger */}
               <button
                 onClick={() => setIsAIChatOpen(true)}
-                className="flex items-center space-x-2 bg-gradient-to-r from-red-600 via-violet-600 to-blue-600 hover:from-red-500 hover:to-blue-500 text-white px-4 py-2 rounded-xl font-black text-xs font-mono shadow-neon-red transition cursor-pointer"
+                className="flex items-center space-x-2 bg-gradient-to-r from-red-600 via-violet-600 to-blue-600 hover:from-red-500 hover:to-blue-500 text-white px-3.5 py-2 rounded-xl font-black text-xs font-mono shadow-neon-red transition cursor-pointer shrink-0"
               >
                 <Sparkles className="h-4 w-4 text-amber-300 animate-pulse" />
-                <span className="hidden sm:inline tracking-wide">AI Copilot</span>
+                <span className="inline tracking-wide">AI Copilot</span>
               </button>
             </>
           )}

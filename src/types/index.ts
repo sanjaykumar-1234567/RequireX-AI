@@ -10,13 +10,33 @@ export type PriorityLevel = 'High' | 'Medium' | 'Low' | 'Critical';
 export type SeverityLevel = 'High' | 'Medium' | 'Low' | 'Critical';
 export type IssueType = 
   | 'Ambiguous word' 
+  | 'Ambiguity'
+  | 'Vague / Subjective Words'
   | 'Incomplete statement' 
+  | 'Incomplete Requirement'
   | 'Weak requirement' 
-  | 'Duplicate requirement' 
-  | 'Conflicting requirement' 
+  | 'Missing Non-Functional Requirement'
   | 'Non-testable requirement' 
-  | 'Missing constraint' 
+  | 'Non-Verifiable / Non-Testable'
+  | 'Conflicting requirement' 
+  | 'Inconsistency / Contradiction'
+  | 'Duplicate requirement' 
+  | 'Duplicate / Redundant Requirement'
+  | 'Non-Atomic Requirement'
   | 'Missing actor' 
+  | 'Missing Actor / Stakeholder'
+  | 'Missing Condition / Trigger'
+  | 'Missing Inputs and Outputs'
+  | 'Missing constraint' 
+  | 'Unclear Quantitative Constraint'
+  | 'Security Gap'
+  | 'Performance Gap'
+  | 'Feasibility / Unrealistic Constraint'
+  | 'Missing Business Rule'
+  | 'Missing Error / Exception Handling'
+  | 'Dependency Detection'
+  | 'Requirement Classification'
+  | 'Priority Detection'
   | 'Missing assumption';
 
 export interface QualityIssue {
@@ -27,6 +47,12 @@ export interface QualityIssue {
   suggestedCorrection: string;
   confidenceScore: number;
   severity: SeverityLevel;
+  code?: string;
+  categoryBadge?: string;
+  missingElements?: string[];
+  relatedReqId?: string;
+  suggestedDecomposition?: string[];
+  ieeeRewrite?: string;
 }
 
 export interface Requirement {

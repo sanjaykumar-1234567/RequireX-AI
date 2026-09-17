@@ -23,6 +23,7 @@ import {
   Award, 
   Milestone, 
   Boxes, 
+  Box,
   BookOpenCheck, 
   GitMerge, 
   FileSpreadsheet, 
@@ -39,7 +40,7 @@ interface ManualSection {
   id: string;
   tabTarget: any;
   title: string;
-  category: 'AI & LLM Benchmark' | 'Executive & Quality' | 'Requirements & Refinement' | 'Risk & Testing' | 'Architecture & Traceability' | 'Simulation & Analysis' | 'Agile & SRS Exports';
+  category: 'AI & LLM Benchmark' | 'Executive & Quality' | 'Requirements & Refinement' | 'Risk & Testing' | 'Architecture & Traceability' | 'Simulation & Analysis' | 'Agile & SRS Exports' | 'UML & System Architecture';
   icon: any;
   tag: string;
   color: string;
@@ -65,7 +66,8 @@ export const ModuleUserManual: React.FC = () => {
     'Risk & Testing',
     'Architecture & Traceability',
     'Simulation & Analysis',
-    'Agile & SRS Exports'
+    'Agile & SRS Exports',
+    'UML & System Architecture'
   ];
 
   const sections: ManualSection[] = [
@@ -577,6 +579,38 @@ export const ModuleUserManual: React.FC = () => {
       inputs: 'All project artifacts (requirements, user stories, use cases, test cases, risks, architecture).',
       outputs: 'Formatted documents downloadable in PDF, Word (.docx), Markdown (.md), and Plain Text (.txt).',
       standard: 'IEEE Std 830-1998 & ISO/IEC/IEEE 29148:2018 SRS Template'
+    },
+    {
+      id: 'system-diagrams',
+      tabTarget: 'system-diagrams',
+      title: 'UML 2.0 & System Architecture Diagrams',
+      category: 'UML & System Architecture',
+      icon: Network,
+      tag: 'UML 2.0 DIAGRAMS',
+      color: 'text-cyan-400',
+      border: 'border-cyan-500/40',
+      glow: 'shadow-neon-cyan',
+      description: 'Formal UML 2.0 specifications with interactive Node Detail Inspectors across lifecycle activity flow, requirement state machine, multi-domain use cases, sequence interactions, class models, ER database schema, and an interactive 3D Diagram Builder Studio to draw custom 3D architecture diagrams.',
+      purpose: 'Provide rigorous architectural visibility and custom 3D diagram construction capabilities for RequireX and target multi-domain systems.',
+      inputs: 'RequireX architecture model, selected domain parameters, user 3D nodes & laser link specifications.',
+      outputs: 'Interactive SVG diagrams, clickable node detail inspector modals, step-by-step state simulators, custom 3D architecture diagrams.',
+      standard: 'UML 2.0 Specification & ISO/IEC/IEEE 42010 System Architecture'
+    },
+    {
+      id: '3d-simulations',
+      tabTarget: '3d-simulations',
+      title: '3D SE Visual Simulation & Engineering Suite',
+      category: 'UML & System Architecture',
+      icon: Box,
+      tag: '3D GRAPHICS ENGINE',
+      color: 'text-amber-400',
+      border: 'border-amber-500/40',
+      glow: 'shadow-neon-amber',
+      description: 'Interactive 3D simulation suite featuring 3D Laser Impact Cascades, Rotatable Floating Traceability Depth Layers with Lineage Inspector, 3D Canvas Satellite Orbit AI Arena, 3D Conveyor Refinement Factory, 3D Risk Volcano Peaks, and 3D Software Architecture City.',
+      purpose: 'Provide immersive, interactive 3D visual verification of change impact, requirements lineage, risk peaks, and multi-model consensus across all domain projects.',
+      inputs: 'Project requirements, domain SLAs, risk probability/impact ratings.',
+      outputs: 'HTML5 3D canvas render loops, isometric depth inspector cards, blast radius metrics, 3D satellite orbit visualization.',
+      standard: 'ISO/IEC/IEEE 29148 & 3D Software Engineering Visualization'
     }
   ];
 

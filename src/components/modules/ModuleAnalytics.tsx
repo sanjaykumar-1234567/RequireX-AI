@@ -25,29 +25,34 @@ export const ModuleAnalytics: React.FC = () => {
   const totalReqs = currentProject.requirements.length;
   const funcReqs = currentProject.requirements.filter(r => r.category === 'Functional').length;
   const nonFuncReqs = currentProject.requirements.filter(r => r.category !== 'Functional').length;
-  const ambiguousReqs = currentProject.requirements.filter(r => r.issues.some(i => i.type === 'Ambiguous word')).length;
+  const ambiguousReqs = currentProject.requirements.filter(r => r.issues.length > 0 && !r.isImprovedAccepted).length;
   const storiesCount = currentProject.userStories.length;
   const testsCount = currentProject.testCases.length;
   const highRisksCount = currentProject.risks.length;
 
   const qualityScore = totalReqs > 0 ? Math.round(((totalReqs - ambiguousReqs) / totalReqs) * 100) : 100;
-  const testCoverage = 88;
-  const traceabilityScore = 100;
-  const completenessScore = 94;
+  const testCoverage = totalReqs > 0 ? Math.min(100, Math.round((testsCount / Math.max(totalReqs, 1)) * 25)) : 100;
+  const traceabilityScore = totalReqs > 0 && storiesCount > 0 ? 100 : 80;
+  const completenessScore = Math.max(70, qualityScore - 5);
+
+  const mustCount = currentProject.requirements.filter(r => r.priority === 'Critical').length;
+  const shouldCount = currentProject.requirements.filter(r => r.priority === 'High').length;
+  const couldCount = currentProject.requirements.filter(r => r.priority === 'Medium').length;
+  const wontCount = currentProject.requirements.filter(r => r.priority === 'Low').length;
 
   const moscowData = [
-    { label: 'Must Have', percent: 55, color: 'bg-red-500 shadow-neon-red', count: Math.round(totalReqs * 0.55) },
-    { label: 'Should Have', percent: 25, color: 'bg-blue-500 shadow-neon-blue', count: Math.round(totalReqs * 0.25) },
-    { label: 'Could Have', percent: 15, color: 'bg-cyan-400 shadow-neon-cyan', count: Math.round(totalReqs * 0.15) },
-    { label: "Won't Have", percent: 5, color: 'bg-violet-600 shadow-neon-violet', count: Math.max(1, Math.round(totalReqs * 0.05)) }
+    { label: 'Must Have', percent: totalReqs > 0 ? Math.round((mustCount / totalReqs) * 100) : 40, color: 'bg-red-500 shadow-neon-red', count: mustCount },
+    { label: 'Should Have', percent: totalReqs > 0 ? Math.round((shouldCount / totalReqs) * 100) : 30, color: 'bg-blue-500 shadow-neon-blue', count: shouldCount },
+    { label: 'Could Have', percent: totalReqs > 0 ? Math.round((couldCount / totalReqs) * 100) : 20, color: 'bg-cyan-400 shadow-neon-cyan', count: couldCount },
+    { label: "Won't Have", percent: totalReqs > 0 ? Math.round((wontCount / totalReqs) * 100) : 10, color: 'bg-violet-600 shadow-neon-violet', count: wontCount }
   ];
 
   const qualityDimensions = [
-    { name: 'Clarity & Precision', score: 96, color: 'bg-blue-400 shadow-neon-blue' },
-    { name: 'Completeness', score: 92, color: 'bg-violet-400 shadow-neon-violet' },
-    { name: 'Verifiability / Testability', score: 88, color: 'bg-red-400 shadow-neon-red' },
-    { name: 'Bi-directional Traceability', score: 100, color: 'bg-cyan-400 shadow-neon-cyan' },
-    { name: 'Consistency & Conflict-Free', score: 94, color: 'bg-violet-500 shadow-neon-violet' }
+    { name: 'Clarity & Precision', score: qualityScore, color: 'bg-blue-400 shadow-neon-blue' },
+    { name: 'Completeness', score: completenessScore, color: 'bg-violet-400 shadow-neon-violet' },
+    { name: 'Verifiability / Testability', score: Math.max(75, 100 - ambiguousReqs * 10), color: 'bg-red-400 shadow-neon-red' },
+    { name: 'Bi-directional Traceability', score: traceabilityScore, color: 'bg-cyan-400 shadow-neon-cyan' },
+    { name: 'Consistency & Conflict-Free', score: Math.max(80, 100 - (ambiguousReqs > 0 ? 8 : 0)), color: 'bg-violet-500 shadow-neon-violet' }
   ];
 
   return (

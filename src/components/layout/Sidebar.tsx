@@ -41,6 +41,8 @@ export const Sidebar: React.FC = () => {
       headerColor: 'text-cyan-400',
       items: [
         { id: 'llm-eval-lab', label: 'LLM Evaluation Lab', icon: Brain, badge: 'BENCHMARK', badgeType: 'cyan' },
+        { id: 'ai-model-studio', label: 'AI Model Selection & Lab', icon: Sparkles, badge: 'MULTI-AI', badgeType: 'violet' },
+        { id: '3d-simulations', label: '3D SE Simulation Lab', icon: Boxes, badge: '3D-SIM', badgeType: 'yellow' },
       ]
     },
     {
@@ -114,6 +116,7 @@ export const Sidebar: React.FC = () => {
       title: 'HELP & CAPABILITIES GUIDE',
       headerColor: 'text-cyan-400',
       items: [
+        { id: 'system-diagrams', label: 'UML & System Diagrams', icon: Network, badge: 'UML 2.0', badgeType: 'violet' },
         { id: 'user-manual', label: 'Interactive User Manual', icon: BookOpen, badge: 'MANUAL', badgeType: 'cyan' },
       ]
     }

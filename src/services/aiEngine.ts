@@ -114,7 +114,6 @@ export class AIEngine {
       .map(l => l.trim())
       .filter(l => {
         if (l.length < 8) return false;
-        // Filter out binary noise: require at least 65% alphanumeric and space characters
         const validChars = (l.match(/[a-zA-Z0-9\s.,;:'"?!()\-_/]/g) || []).length;
         return (validChars / l.length) >= 0.65;
       });
@@ -122,37 +121,17 @@ export class AIEngine {
     const requirements: Requirement[] = [];
 
     lines.forEach((line, index) => {
-      const lower = line.toLowerCase();
-      let category: RequirementCategory = 'Functional';
-      let priority: PriorityLevel = 'Medium';
-
-      if (lower.includes('speed') || lower.includes('fast') || lower.includes('performance') || lower.includes('secure') || lower.includes('encrypt') || lower.includes('uptime') || lower.includes('scale') || lower.includes('proctor') || lower.includes('cheat')) {
-        category = 'Non-functional';
-      } else if (lower.includes('business') || lower.includes('revenue') || lower.includes('compliance') || lower.includes('policy')) {
-        category = 'Business';
-      } else if (lower.includes('admin') || lower.includes('dashboard') || lower.includes('instructor') || lower.includes('system shall')) {
-        category = 'System';
-      } else if (lower.includes('user') || lower.includes('student') || lower.includes('candidate') || lower.includes('as a')) {
-        category = 'User';
-      } else if (lower.includes('api') || lower.includes('database') || lower.includes('integration') || lower.includes('indexeddb') || lower.includes('sync')) {
-        category = 'Technical';
-      }
-
-      if (lower.includes('must') || lower.includes('critical') || lower.includes('urgent') || lower.includes('security')) {
-        priority = 'High';
-      }
-
-      const issues = AIEngine.analyzeQuality(line);
+      const analysis = AIEngine.analyze20Problems(line, lines, domain, index);
 
       requirements.push({
         id: `REQ-${String(index + 1).padStart(2, '0')}`,
-        title: line.length > 50 ? line.substring(0, 47) + '...' : line,
+        title: line.length > 55 ? line.substring(0, 52) + '...' : line,
         description: line,
-        category,
-        priority,
-        status: issues.length > 0 ? 'Analyzed' : 'Draft',
-        issues,
-        improvedText: AIEngine.generateIEEEText(line),
+        category: analysis.category,
+        priority: analysis.priority,
+        status: analysis.issues.length > 0 ? 'Analyzed' : 'Approved',
+        issues: analysis.issues,
+        improvedText: analysis.ieeeRewrite,
         isImprovedAccepted: false,
         domain,
         version: 1,
@@ -163,68 +142,725 @@ export class AIEngine {
     return requirements;
   }
 
-  static analyzeQuality(text: string): QualityIssue[] {
+  /**
+   * Comprehensive 20-Problem Requirement Defect Analyzer
+   * Detects all 20 software requirement defects specified in ISO/IEC/IEEE 29148 & IEEE 830.
+   */
+  static analyze20Problems(
+    text: string, 
+    allLines: string[] = [], 
+    domain: string = 'General', 
+    reqIndex: number = 0
+  ): {
+    issues: QualityIssue[];
+    ieeeRewrite: string;
+    category: RequirementCategory;
+    priority: PriorityLevel;
+  } {
     const issues: QualityIssue[] = [];
     const lower = text.toLowerCase();
+    const reqId = `REQ-${String(reqIndex + 1).padStart(2, '0')}`;
 
-    const ambiguousWords = ['fast', 'user-friendly', 'easy', 'robust', 'quick', 'efficient', 'seamless', 'good', 'appropriate'];
-    const foundAmbiguous = ambiguousWords.filter(w => lower.includes(w));
-    if (foundAmbiguous.length > 0) {
+    // 19. Requirement Classification
+    let category: RequirementCategory = 'Functional';
+    if (lower.includes('speed') || lower.includes('fast') || lower.includes('performance') || lower.includes('latency') || 
+        lower.includes('secure') || lower.includes('encrypt') || lower.includes('uptime') || lower.includes('availability') || 
+        lower.includes('scale') || lower.includes('concurrency') || lower.includes('proctor') || lower.includes('cheat')) {
+      category = 'Non-functional';
+    } else if (lower.includes('business') || lower.includes('revenue') || lower.includes('compliance') || 
+               lower.includes('policy') || lower.includes('fee') || lower.includes('refund policy')) {
+      category = 'Business';
+    } else if (lower.includes('admin') || lower.includes('dashboard') || lower.includes('telemetry') || 
+               lower.includes('scheduler') || lower.includes('background') || lower.includes('system shall')) {
+      category = 'System';
+    } else if (lower.includes('passenger') || lower.includes('student') || lower.includes('customer') || 
+               lower.includes('shopper') || lower.includes('doctor') || lower.includes('patient') || lower.includes('as a user')) {
+      category = 'User';
+    } else if (lower.includes('api') || lower.includes('database') || lower.includes('integration') || 
+               lower.includes('webhook') || lower.includes('indexeddb') || lower.includes('rest') || lower.includes('sync')) {
+      category = 'Technical';
+    }
+
+    // 20. Priority Detection (MoSCoW)
+    let priority: PriorityLevel = 'Medium';
+    if (lower.includes('must') || lower.includes('critical') || lower.includes('urgent') || 
+        lower.includes('security') || lower.includes('auth') || lower.includes('payment')) {
+      priority = 'Critical';
+    } else if (lower.includes('should') || lower.includes('important') || lower.includes('performance') || lower.includes('high')) {
+      priority = 'High';
+    } else if (lower.includes('could') || lower.includes('nice to have') || lower.includes('optional')) {
+      priority = 'Low';
+    }
+
+    // 1. Ambiguity (Multiple possible interpretations)
+    const ambiguityTerms = ['fast', 'quick', 'rapid', 'high speed', 'high volume', 'large capacity'];
+    const foundAmbiguity = ambiguityTerms.find(w => new RegExp(`\\b${w}\\b`, 'i').test(lower));
+    const hasNumericalTime = /\b\d+(\.\d+)?\s*(ms|s|sec|seconds?|minutes?|hours?)\b/i.test(lower);
+    if (foundAmbiguity && !hasNumericalTime) {
       issues.push({
-        id: `ISS-${Math.random().toString(36).substring(2, 7)}`,
-        type: 'Ambiguous word',
-        problem: `Contains subjective term(s): "${foundAmbiguous.join(', ')}"`,
-        reason: 'Subjective terms lead to differing interpretations between clients and developers.',
-        suggestedCorrection: `Replace "${foundAmbiguous[0]}" with explicit measurable metrics (e.g. "within 1.5 seconds" or "evaluated within 500ms").`,
-        confidenceScore: 95,
+        id: `ISS-${reqId}-01`,
+        code: 'DEF-01',
+        type: 'Ambiguity',
+        problem: `Ambiguous Requirement: What does "${foundAmbiguity}" mean? (1 second? 5 seconds? 10 seconds?) Lacks quantitative SLA boundary.`,
+        reason: 'Ambiguous statements have multiple conflicting interpretations between clients and engineers (IEEE 830 Clause 4.3.2).',
+        suggestedCorrection: 'Specify a measurable response time target, e.g., "within 1.5 seconds under a peak load of 5,000 concurrent active sessions".',
+        confidenceScore: 96,
+        severity: 'Critical'
+      });
+    }
+
+    // 2. Vague / Subjective Words (Difficult to measure objectively)
+    const vagueWords = ['easy', 'user-friendly', 'efficient', 'secure', 'reliable', 'sufficient', 'convenient', 'quickly', 'robust', 'seamless', 'good', 'simple', 'smooth', 'well', 'promptly', 'flexible', 'intuitive'];
+    const foundVague = vagueWords.filter(w => new RegExp(`\\b${w}\\b`, 'i').test(lower));
+    if (foundVague.length > 0) {
+      issues.push({
+        id: `ISS-${reqId}-02`,
+        code: 'DEF-02',
+        type: 'Vague / Subjective Words',
+        problem: `Vague terminology detected: "${foundVague.join(', ')}" cannot be objectively validated.`,
+        reason: 'Subjective buzzwords violate ISO/IEC/IEEE 29148 testability rules. Acceptance testing cannot verify "user-friendly" without defined metrics.',
+        suggestedCorrection: 'Define measurable usability criteria such as "task completion rate >= 95% with a maximum of 3 navigation steps".',
+        confidenceScore: 94,
         severity: 'High'
       });
     }
 
-    if (!lower.includes('system') && !lower.includes('user') && !lower.includes('student') && !lower.includes('instructor') && !lower.includes('admin') && !lower.includes('candidate')) {
+    // 3. Incomplete Requirements (Missing vital dimensions)
+    const isNotificationOrProcess = lower.includes('notification') || lower.includes('send alert') || lower.includes('notify') || lower.includes('send email') || lower.includes('send sms');
+    const hasRecipient = lower.includes('passenger') || lower.includes('user') || lower.includes('admin') || lower.includes('customer') || lower.includes('student') || lower.includes('recipient') || lower.includes('client');
+    const hasTrigger = lower.includes('when') || lower.includes('after') || lower.includes('upon') || lower.includes('if') || lower.includes('on ');
+    const hasChannel = lower.includes('sms') || lower.includes('email') || lower.includes('push') || lower.includes('webhook') || lower.includes('in-app');
+    if (isNotificationOrProcess && (!hasRecipient || !hasTrigger || !hasChannel)) {
+      const missing: string[] = [];
+      if (!hasRecipient) missing.push('✓ Recipient Role');
+      if (!hasTrigger) missing.push('✓ Trigger Condition');
+      if (!hasChannel) missing.push('✓ Notification Channel');
+      missing.push('✓ Content Payload Definition');
+
       issues.push({
-        id: `ISS-${Math.random().toString(36).substring(2, 7)}`,
-        type: 'Missing actor',
-        problem: 'No explicit subject/actor defined.',
-        reason: 'It is unclear who or what component is responsible for executing this behavior.',
-        suggestedCorrection: 'Specify the primary subject (e.g., "The system shall...", "The candidate shall...").',
+        id: `ISS-${reqId}-03`,
+        code: 'DEF-03',
+        type: 'Incomplete Requirement',
+        problem: 'Incomplete Requirement: Statement does not provide enough operational detail to implement.',
+        missingElements: missing,
+        reason: 'Software engineers cannot build the notification dispatcher without recipient targeting, channel protocol, and trigger criteria.',
+        suggestedCorrection: 'Specify recipient role (e.g. passenger), trigger event (e.g. 30 mins before arrival), channel (SMS/Push), and notification message schema.',
+        confidenceScore: 93,
+        severity: 'High'
+      });
+    }
+
+    // 4. Missing Non-Functional Requirements (Companion NFR gap)
+    const isCoreAction = (lower.includes('book') || lower.includes('order') || lower.includes('checkout') || 
+                          lower.includes('transfer') || lower.includes('submit') || lower.includes('register') || lower.includes('login')) && category === 'Functional';
+    if (isCoreAction && !hasNumericalTime && !lower.includes('encrypt') && !lower.includes('auth')) {
+      issues.push({
+        id: `ISS-${reqId}-04`,
+        code: 'DEF-04',
+        type: 'Missing Non-Functional Requirement',
+        problem: 'Companion Non-Functional Requirements (NFRs) missing for critical transaction flow.',
+        missingElements: [
+          '⚠ Performance requirement missing (< 1.5s latency)',
+          '⚠ Security requirement missing (TLS 1.3 & Auth)',
+          '⚠ Availability requirement missing (99.9% uptime)'
+        ],
+        reason: 'Functional requirements without companion performance and security NFRs lead to production bottlenecks and security audits failure.',
+        suggestedCorrection: 'Couple this functional requirement with explicit NFR benchmarks: response latency < 1.2s, 99.95% uptime, and TLS 1.3 encryption.',
+        confidenceScore: 90,
+        severity: 'Medium'
+      });
+    }
+
+    // 5. Non-Verifiable / Non-Testable Requirements
+    const nonTestableWords = ['highly secure', 'attractive', 'bug-free', 'never fail', '100% reliable', 'optimal', 'best in class', 'instantaneous'];
+    const foundNonTestable = nonTestableWords.find(w => lower.includes(w));
+    if (foundNonTestable) {
+      issues.push({
+        id: `ISS-${reqId}-05`,
+        code: 'DEF-05',
+        type: 'Non-Verifiable / Non-Testable',
+        problem: `Not objectively verifiable: Contains non-testable phrase "${foundNonTestable}".`,
+        reason: 'QA engineers cannot write automated pass/fail unit assertions for qualitative superlatives like "highly secure" (ISO/IEC/IEEE 29148).',
+        suggestedCorrection: 'Define explicit verifiable threshold: "The system shall lock an account after 5 consecutive failed login attempts within 15 minutes and log SHA-256 audit events".',
+        confidenceScore: 95,
+        severity: 'Critical'
+      });
+    }
+
+    // 6. Inconsistency / Contradiction (Cross-requirement conflict detection)
+    if (allLines.length > 1) {
+      allLines.forEach((otherLine, otherIdx) => {
+        if (otherIdx === reqIndex) return;
+        const otherLower = otherLine.toLowerCase();
+
+        // Time limit contradiction (e.g., 2 hours vs 4 hours cancellation)
+        const hourMatchA = lower.match(/(\d+)\s*(hours?|hrs?|minutes?|mins?)\s*(before|prior)/i);
+        const hourMatchB = otherLower.match(/(\d+)\s*(hours?|hrs?|minutes?|mins?)\s*(before|prior)/i);
+        if (hourMatchA && hourMatchB && hourMatchA[1] !== hourMatchB[1] && 
+            (lower.includes('cancel') || lower.includes('refund')) && (otherLower.includes('cancel') || otherLower.includes('refund'))) {
+          issues.push({
+            id: `ISS-${reqId}-06`,
+            code: 'DEF-06',
+            type: 'Inconsistency / Contradiction',
+            problem: `Potential contradiction detected with REQ-${String(otherIdx + 1).padStart(2, '0')}: Conflicting time limit (${hourMatchA[0]} vs ${hourMatchB[0]}).`,
+            relatedReqId: `REQ-${String(otherIdx + 1).padStart(2, '0')}`,
+            reason: 'Conflicting cancellation policies or operational timeframes violate IEEE consistency constraints.',
+            suggestedCorrection: `Align cancellation policy between REQ-${String(reqIndex + 1).padStart(2, '0')} and REQ-${String(otherIdx + 1).padStart(2, '0')} to a single agreed standard (e.g. up to ${hourMatchA[1]} hours prior to departure).`,
+            confidenceScore: 97,
+            severity: 'Critical'
+          });
+        }
+
+        // Offline vs Real-time cloud sync contradiction
+        if ((lower.includes('offline') && otherLower.includes('real-time cloud sync')) || 
+            (lower.includes('guest checkout without') && otherLower.includes('mandatory user registration'))) {
+          issues.push({
+            id: `ISS-${reqId}-06b`,
+            code: 'DEF-06',
+            type: 'Inconsistency / Contradiction',
+            problem: `Architectural policy clash detected with REQ-${String(otherIdx + 1).padStart(2, '0')}.`,
+            relatedReqId: `REQ-${String(otherIdx + 1).padStart(2, '0')}`,
+            reason: 'Operating modes (offline vs real-time or guest vs registered) conflict in session and state management.',
+            suggestedCorrection: `Decouple flows into distinct online vs offline operating modes with clear fallback boundaries.`,
+            confidenceScore: 92,
+            severity: 'High'
+          });
+        }
+      });
+    }
+
+    // 7. Duplicate / Redundant Requirements (Semantic overlap > 70%)
+    if (allLines.length > 1) {
+      allLines.forEach((otherLine, otherIdx) => {
+        if (otherIdx <= reqIndex) return; // avoid duplicate duplicate-reports
+        const wordsA = new Set(lower.split(/\s+/).filter(w => w.length > 3));
+        const wordsB = new Set(otherLine.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+        const intersection = [...wordsA].filter(w => wordsB.has(w));
+        const similarity = Math.round((intersection.length / Math.max(wordsA.size, wordsB.size, 1)) * 100);
+
+        if (similarity >= 65) {
+          issues.push({
+            id: `ISS-${reqId}-07`,
+            code: 'DEF-07',
+            type: 'Duplicate / Redundant Requirement',
+            problem: `Possible duplicate / redundant requirement with REQ-${String(otherIdx + 1).padStart(2, '0')} (Semantic similarity: ${similarity}%).`,
+            relatedReqId: `REQ-${String(otherIdx + 1).padStart(2, '0')}`,
+            reason: 'Both statements describe essentially the same system capability. Duplicate requirements inflate maintenance effort.',
+            suggestedCorrection: `Consider merging REQ-${String(reqIndex + 1).padStart(2, '0')} and REQ-${String(otherIdx + 1).padStart(2, '0')} into a single unified specification.`,
+            confidenceScore: 89,
+            severity: 'Medium'
+          });
+        }
+      });
+    }
+
+    // 8. Non-Atomic Requirements (Bundling multiple independent features)
+    const verbList = ['book', 'cancel', 'receive', 'make payment', 'download', 'upload', 'edit', 'delete', 'notify', 'search', 'authenticate', 'generate'];
+    const matchedVerbs = verbList.filter(v => lower.includes(v));
+    const commaCount = (text.match(/,/g) || []).length;
+    if (matchedVerbs.length >= 3 || (commaCount >= 3 && lower.includes(' and '))) {
+      const decomposition = matchedVerbs.slice(0, 5).map((v, i) => `REQ-0${i + 1} → ${v.charAt(0).toUpperCase() + v.slice(1)} capability`);
+      issues.push({
+        id: `ISS-${reqId}-08`,
+        code: 'DEF-08',
+        type: 'Non-Atomic Requirement',
+        problem: `Non-atomic requirement: Contains ${matchedVerbs.length} independent actions bundled into a single statement.`,
+        suggestedDecomposition: decomposition,
+        reason: 'Composite requirements cannot be independently tested, estimated in story points, or assigned separate release milestones (IEEE 830 Clause 4.3.5).',
+        suggestedCorrection: `Decompose into distinct atomic requirements: ${decomposition.join('; ')}.`,
+        confidenceScore: 93,
+        severity: 'High'
+      });
+    }
+
+    // 9. Missing Actors / Stakeholders (Passive voice or missing subject)
+    const hasActor = lower.includes('system') || lower.includes('user') || lower.includes('passenger') || 
+                     lower.includes('admin') || lower.includes('student') || lower.includes('doctor') || 
+                     lower.includes('patient') || lower.includes('customer') || lower.includes('service') || lower.includes('engine');
+    if (!hasActor || (lower.startsWith('shall generate') || lower.startsWith('reports will') || lower.startsWith('data must be'))) {
+      issues.push({
+        id: `ISS-${reqId}-09`,
+        code: 'DEF-09',
+        type: 'Missing Actor / Stakeholder',
+        problem: 'Actor ambiguity: The requirement does not clearly identify who performs or triggers the action.',
+        reason: 'Untraceable operational authority: developers cannot assign authorization permissions or UI roles without an explicit actor.',
+        suggestedCorrection: 'Specify the primary subject (e.g., "The Administrator shall generate analytical reports", "The System shall dispatch alerts").',
+        confidenceScore: 91,
+        severity: 'Medium'
+      });
+    }
+
+    // 10. Missing Conditions / Triggers
+    const actionNeedsTrigger = (lower.includes('send an alert') || lower.includes('trigger backup') || lower.includes('send notification')) && !hasTrigger;
+    if (actionNeedsTrigger) {
+      issues.push({
+        id: `ISS-${reqId}-10`,
+        code: 'DEF-10',
+        type: 'Missing Condition / Trigger',
+        problem: 'Missing trigger condition: Describes an action but not when or under what circumstance it happens.',
+        reason: 'Automated event triggers must state explicit threshold or lifecycle event triggers to avoid infinite loops or missing dispatches.',
+        suggestedCorrection: 'Define the trigger event: e.g., "Send an alert when train delay exceeds 15 minutes / disk usage exceeds 85%".',
+        confidenceScore: 92,
+        severity: 'Medium'
+      });
+    }
+
+    // 11. Missing Inputs and Outputs
+    const hasCalculate = lower.includes('calculate') || lower.includes('compute') || lower.includes('generate fare') || lower.includes('estimate');
+    const hasDeclaredInputs = lower.includes('input') || lower.includes('based on') || lower.includes('from ') || lower.includes('using ');
+    if (hasCalculate && !hasDeclaredInputs) {
+      issues.push({
+        id: `ISS-${reqId}-11`,
+        code: 'DEF-11',
+        type: 'Missing Inputs and Outputs',
+        problem: 'Missing input parameters and output schema for computational logic.',
+        missingElements: [
+          'Inputs: Source location, destination, travel class, passenger type',
+          'Output: Total calculated fare with tax breakdown'
+        ],
+        reason: 'Algorithms cannot be written or validated without explicitly typed input parameters and return data contracts.',
+        suggestedCorrection: 'Explicitly specify inputs (source, destination, class, passenger type) and output return structure (total fare currency breakdown).',
+        confidenceScore: 90,
+        severity: 'Medium'
+      });
+    }
+
+    // 12. Unclear Quantitative Constraints
+    const numberMatches = text.match(/\b\d{2,}\b/);
+    const hasContext = lower.includes('concurrent') || lower.includes('per second') || lower.includes('total') || lower.includes('within') || lower.includes('milliseconds');
+    if (numberMatches && !hasContext && !lower.includes('year') && !lower.includes('date')) {
+      issues.push({
+        id: `ISS-${reqId}-12`,
+        code: 'DEF-12',
+        type: 'Unclear Quantitative Constraint',
+        problem: `Constraint requires clarification: "${numberMatches[0]}" lacks operational context (concurrent users vs total accounts? over what period?).`,
+        reason: 'Isolated numbers without capacity, throughput, or duration units cause mismatched server provisioning.',
+        suggestedCorrection: `Clarify quantitative context: e.g. "sustain ${numberMatches[0]} concurrent active users during peak hours with average response time < 1.0s".`,
         confidenceScore: 88,
         severity: 'Medium'
       });
     }
 
-    return issues;
+    // 13. Security Gaps
+    const involvesCredentialsOrData = lower.includes('email') || lower.includes('login') || lower.includes('account') || 
+                                     lower.includes('password') || lower.includes('credit card') || lower.includes('payment');
+    const hasSecurityGuards = lower.includes('encrypt') || lower.includes('mfa') || lower.includes('hash') || lower.includes('tls') || lower.includes('oauth');
+    if (involvesCredentialsOrData && !hasSecurityGuards) {
+      issues.push({
+        id: `ISS-${reqId}-13`,
+        code: 'DEF-13',
+        type: 'Security Gap',
+        problem: 'Security control gaps detected: Sensitive identity or transaction workflow lacks explicit protection controls.',
+        missingElements: [
+          '✓ Mandatory Multi-Factor Authentication (MFA)',
+          '✓ TLS 1.3 transport encryption',
+          '✓ Password hashing via bcrypt (work factor >= 12)',
+          '✓ Rate-limiting after 5 failed login attempts'
+        ],
+        reason: 'Handling user credentials or accounts without stated security controls triggers high-severity cybersecurity audit defects.',
+        suggestedCorrection: 'Incorporate security controls: password hashing (bcrypt), TLS 1.3 encryption, and account lockout after 5 consecutive failures.',
+        confidenceScore: 94,
+        severity: 'High'
+      });
+    }
+
+    // 14. Performance Gaps
+    const isHighTraffic = (lower.includes('process booking') || lower.includes('search') || lower.includes('query') || lower.includes('load catalog')) && !hasNumericalTime;
+    if (isHighTraffic) {
+      issues.push({
+        id: `ISS-${reqId}-14`,
+        code: 'DEF-14',
+        type: 'Performance Gap',
+        problem: 'Performance gap: Missing maximum acceptable response time, throughput, and concurrent user bounds.',
+        reason: 'User satisfaction and load testing require exact millisecond SLAs under defined concurrent user volumes.',
+        suggestedCorrection: 'Define explicit SLA: "The system shall process requests within 1.2 seconds under a peak load of 50,000 concurrent active users".',
+        confidenceScore: 92,
+        severity: 'High'
+      });
+    }
+
+    // 15. Feasibility / Unrealistic Constraints
+    if (lower.includes('instant') || lower.includes('0ms') || lower.includes('zero delay') || lower.includes('100% uptime') || lower.includes('never crash')) {
+      issues.push({
+        id: `ISS-${reqId}-15`,
+        code: 'DEF-15',
+        type: 'Feasibility / Unrealistic Constraint',
+        problem: 'Potential feasibility concern: Claiming instantaneous execution or 100% uptime is technically questionable.',
+        reason: 'Physical network propagation and server latency prevent 0ms zero-latency execution. SLA promises must be achievable.',
+        suggestedCorrection: 'Define an achievable engineering target: e.g. "p99 response latency <= 250ms with 99.95% availability SLA".',
+        confidenceScore: 95,
+        severity: 'High'
+      });
+    }
+
+    // 16. Missing Business Rules
+    if ((lower.includes('cancel') || lower.includes('refund') || lower.includes('discount')) && !lower.includes('fee') && !lower.includes('cutoff') && !lower.includes('policy')) {
+      issues.push({
+        id: `ISS-${reqId}-16`,
+        code: 'DEF-16',
+        type: 'Missing Business Rule',
+        problem: 'Missing business rules: Cancellation or refund parameters lack cutoff timing, fee structures, or refund SLAs.',
+        reason: 'Commercial domain operations require explicit business logic to resolve refund amounts and operational time gates.',
+        suggestedCorrection: 'Define business rules: "Users can cancel an order up to 2 hours prior to dispatch with a 10% fee; refunds will process within 24 hours".',
+        confidenceScore: 91,
+        severity: 'Medium'
+      });
+    }
+
+    // 17. Missing Error / Exception Handling
+    if ((lower.includes('payment') || lower.includes('checkout') || lower.includes('transfer') || lower.includes('sync')) && !lower.includes('fail') && !lower.includes('error') && !lower.includes('timeout')) {
+      issues.push({
+        id: `ISS-${reqId}-17`,
+        code: 'DEF-17',
+        type: 'Missing Error / Exception Handling',
+        problem: 'Exception handling requirement missing: Describes only the happy path without handling failures or timeouts.',
+        missingElements: [
+          '⚠ Gateway timeout handling',
+          '⚠ Network disconnect fallback state',
+          '⚠ Automated transaction rollback & customer alert'
+        ],
+        reason: 'Mission-critical transactions must specify behavior when network drops or third-party webhooks fail.',
+        suggestedCorrection: 'Add exception handling: "If payment times out after 30 seconds or network disconnects, roll back transaction and alert user with retry token".',
+        confidenceScore: 92,
+        severity: 'Medium'
+      });
+    }
+
+    // 18. Dependency Detection
+    if (lower.includes('payment') || lower.includes('download ticket') || lower.includes('generate invoice') || lower.includes('print')) {
+      issues.push({
+        id: `ISS-${reqId}-18`,
+        code: 'DEF-18',
+        type: 'Dependency Detection',
+        problem: 'Workflow dependency identified: Upstream validation prerequisites required.',
+        reason: 'Generating tickets or invoices strictly depends on preceding authentication and confirmed payment authorization.',
+        suggestedCorrection: 'Maintain bi-directional RTM traceability linking this requirement to upstream authentication and payment confirmation.',
+        confidenceScore: 88,
+        severity: 'Low'
+      });
+    }
+
+    const ieeeRewrite = AIEngine.generateContextualIEEERewrite(text, domain, issues);
+
+    return {
+      issues,
+      ieeeRewrite,
+      category,
+      priority
+    };
+  }
+
+  static analyzeQuality(text: string): QualityIssue[] {
+    const analysis = AIEngine.analyze20Problems(text);
+    return analysis.issues;
+  }
+
+  /**
+   * Context-Aware IEEE 830 / ISO 29148 Standard Rewriter
+   * Extracts domain context, entities, verbs, and intent from the raw requirement,
+   * replacing subjective phrases with concrete, verifiable engineering benchmarks.
+   * Handles ANY domain — predefined or custom user-defined.
+   */
+  static generateContextualIEEERewrite(raw: string, domain: string = 'General', issues: QualityIssue[] = []): string {
+    const rawTrimmed = raw.trim();
+    if (!rawTrimmed) return 'The system shall perform the specified operation within defined SLA boundaries.';
+    const lower = rawTrimmed.toLowerCase();
+    const domainLower = (domain || 'General').toLowerCase().trim();
+
+    // 1. Domain-Aware Actor Resolution (handles custom domains via clean naming)
+    const toServiceName = (d: string): string => {
+      const clean = d.replace(/[^a-zA-Z0-9\s]/g, '').trim();
+      // Avoid duplicate "system" or "service" words in actor
+      if (/system$/i.test(clean) || /platform$/i.test(clean)) return `The ${clean.toLowerCase()} module`;
+      if (/service$/i.test(clean) || /engine$/i.test(clean)) return `The ${clean.toLowerCase()}`;
+      return `The ${clean.toLowerCase()} processing service`;
+    };
+
+    let actor = 'The system';
+    if (lower.includes('passenger') || domainLower.includes('railway') || lower.includes('pnr') || lower.includes('train') || lower.includes('ticket')) {
+      actor = 'The railway reservation engine';
+    } else if (lower.includes('student') || lower.includes('quiz') || lower.includes('exam') || lower.includes('proctor') || domainLower.includes('education') || domainLower.includes('quiz')) {
+      actor = 'The examination proctoring service';
+    } else if (lower.includes('patient') || lower.includes('doctor') || lower.includes('clinical') || domainLower.includes('hospital') || domainLower.includes('health') || domainLower.includes('medical')) {
+      actor = 'The clinical health information system';
+    } else if (lower.includes('customer') || lower.includes('cart') || lower.includes('order') || lower.includes('product') || domainLower.includes('commerce') || domainLower.includes('retail') || domainLower.includes('shopping')) {
+      actor = 'The e-commerce transaction service';
+    } else if (lower.includes('bank') || lower.includes('transfer') || lower.includes('payment') || lower.includes('finance') || domainLower.includes('banking') || domainLower.includes('fintech') || domainLower.includes('payment')) {
+      actor = 'The core payment processing kernel';
+    } else if (lower.includes('auth') || lower.includes('login') || lower.includes('password') || lower.includes('token') || lower.includes('credential') || domainLower.includes('auth') || domainLower.includes('identity')) {
+      actor = 'The identity and authentication provider';
+    } else if (lower.includes('admin') || lower.includes('manager') || lower.includes('dashboard') || domainLower.includes('admin')) {
+      actor = 'The administrative management console';
+    } else if (lower.includes('sensor') || lower.includes('device') || lower.includes('iot') || domainLower.includes('iot') || domainLower.includes('smart home')) {
+      actor = 'The IoT device management platform';
+    } else if (lower.includes('disaster') || lower.includes('emergency') || lower.includes('rescue') || domainLower.includes('disaster') || domainLower.includes('emergency')) {
+      actor = 'The emergency response coordination system';
+    } else if (lower.includes('report') || lower.includes('analytics') || lower.includes('dashboard') || domainLower.includes('analytics') || domainLower.includes('reporting')) {
+      actor = 'The analytics and reporting engine';
+    } else if (lower.includes('notification') || lower.includes('alert') || lower.includes('message') || domainLower.includes('notification')) {
+      actor = 'The notification dispatch service';
+    } else if (domain && domain !== 'General' && domain !== 'General Software System') {
+      // Smart custom domain: produce grammatically clean actor name
+      actor = toServiceName(domain);
+    }
+
+    // 2. High-precision semantic transformations for recognized patterns
+    if (lower.includes('fast ticket booking') || (lower.includes('fast') && lower.includes('booking'))) {
+      return `${actor} shall process concurrent ticket reservation transactions within 1.5 seconds under a peak concurrency load of 50,000 active sessions, returning a validated booking reference and itemized cost receipt.`;
+    }
+    if (lower.includes('user-friendly') || lower.includes('easy to use') || lower.includes('easy to navigate')) {
+      return `The user interface module shall enable authenticated users to complete primary ${domainLower !== 'general' ? domainLower + ' ' : ''}workflows with a measured task completion rate >= 95% in <= 3 interaction steps, without requiring external training or documentation.`;
+    }
+    if (lower.includes('send notification') || lower.includes('send an alert') || lower.includes('send alert') || lower.includes('email notification')) {
+      return `${actor} shall deliver automated multi-channel notifications (SMS, email, push) to verified recipient endpoints within 30 seconds of confirmed event triggers, with delivery acknowledgment logged in the audit trail.`;
+    }
+    if (lower.includes('cancel') && (lower.includes('ticket') || lower.includes('order') || lower.includes('booking') || lower.includes('reservation'))) {
+      const hours = (lower.match(/(\d+)\s*(hours?|hrs?)/i) || [])[1] || '2';
+      return `${actor} shall permit authenticated users to initiate cancellation requests up to ${hours} hours prior to the scheduled event, computing applicable refund deductions per policy and crediting verified amounts within 24 hours.`;
+    }
+    if ((lower.includes('secure') || lower.includes('data protection') || lower.includes('protect')) && !lower.includes('process')) {
+      return `${actor} shall enforce end-to-end TLS 1.3 encryption in transit, store sensitive credentials using salted bcrypt hashes (work factor >= 12), and encrypt all persisted data at rest using AES-256 with quarterly key rotation.`;
+    }
+    if (lower.includes('calculate') && (lower.includes('fare') || lower.includes('price') || lower.includes('cost') || lower.includes('total'))) {
+      return `${actor} shall compute the total transaction amount incorporating applicable discounts, taxes, and dynamic pricing multipliers, returning an itemized cost breakdown to the client within 250 milliseconds.`;
+    }
+    if (lower.includes('support') && (lower.includes('users') || lower.includes('traffic') || lower.includes('concurrent') || lower.includes('load'))) {
+      const numMatch = rawTrimmed.match(/\b\d{2,}\b/);
+      const num = numMatch ? numMatch[0] : '10,000';
+      return `${actor} shall sustain a throughput of ${num} concurrent active sessions with average API response latency < 1.2 seconds at p95 and a minimum 99.95% service availability SLA under peak load conditions.`;
+    }
+    if (lower.includes('prevent cheating') || lower.includes('proctoring') || lower.includes('anti-cheat') || lower.includes('detect tab')) {
+      return `${actor} shall monitor real-time browser focus state, log all unauthorized window-switch events with timestamps, and automatically terminate the active session after 3 consecutively verified violations.`;
+    }
+    if (lower.includes('make payment') || lower.includes('process payment') || lower.includes('checkout') || lower.includes('initiate payment')) {
+      return `${actor} shall execute payment transactions via PCI-DSS Level 1 compliant gateways within 3.0 seconds, triggering an automated transactional rollback with error logging if gateway confirmation is not received within 30 seconds.`;
+    }
+    if (lower.includes('generate report') || lower.includes('create report') || lower.includes('export report')) {
+      return `${actor} shall generate and deliver paginated ${domainLower !== 'general' ? domainLower + ' ' : ''}analytical reports in PDF and CSV formats within 5 seconds for datasets up to 100,000 records, with configurable date range, grouping, and filter parameters.`;
+    }
+    if (lower.includes('upload') || lower.includes('import') || lower.includes('ingest')) {
+      return `${actor} shall accept file uploads of up to 50 MB in supported formats, validate structural integrity and schema compliance within 2 seconds, and persist records to the database with a transaction-level consistency guarantee.`;
+    }
+    if (lower.includes('search') || lower.includes('find') || lower.includes('query') || lower.includes('filter')) {
+      return `${actor} shall execute full-text and parameterized search queries across the ${domainLower !== 'general' ? domainLower + ' ' : ''}dataset and return ranked, paginated results within 800 milliseconds for collections up to 1,000,000 records.`;
+    }
+    if (lower.includes('backup') || lower.includes('recovery') || lower.includes('restore')) {
+      return `${actor} shall perform automated incremental backups every 6 hours, maintain a Recovery Point Objective (RPO) of <= 1 hour, and guarantee a Recovery Time Objective (RTO) of <= 4 hours with verified restoration integrity.`;
+    }
+    if (lower.includes('log') || lower.includes('audit') || lower.includes('track')) {
+      return `${actor} shall record all user-initiated actions, system state transitions, and API access events in an append-only, tamper-evident audit log, retaining entries for a minimum of 90 days with sub-100ms write latency.`;
+    }
+
+    // 3. Dynamic Quantifier Synthesizer — Ensures rewrite is NEVER identical to raw input
+    let coreClause = rawTrimmed
+      .replace(/^(the\s+system\s+(should|must|needs\s+to|shall|will)|we\s+need\s+to|please\s+(ensure|make\s+sure(\s+to)?)|the\s+app\s+should|users?\s+(can|should|must|shall))\s+/i, '')
+      .replace(/^(it\s+should|it\s+must|it\s+shall)\s+/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Remove redundant leading "to "
+    coreClause = coreClause.replace(/^to\s+/i, '');
+
+    // Replace subjective/vague terms with quantified engineering criteria
+    coreClause = coreClause
+      .replace(/\b(fast(?:er)?|quickly|swiftly|rapidly|in real[- ]?time)\b/gi, 'within 1.5 seconds under standard production load')
+      .replace(/\b(user-friendly|easy[\s-]to[\s-]use|simple[\s-]to[\s-]use|convenient|intuitive|simple)\b/gi, 'with a task completion rate >= 95% in <= 3 interaction steps')
+      .replace(/\b(reliable|reliably|always available)\b/gi, 'maintaining a 99.95% operational uptime SLA')
+      .replace(/\b(secure|securely|safe|safely)\b/gi, 'enforcing TLS 1.3 encryption and role-based access control (RBAC)')
+      .replace(/\b(efficient(?:ly)?|optimized|scalable)\b/gi, 'with CPU utilization <= 35% and memory footprint <= 200 MB under peak load')
+      .replace(/\b(sufficient(?:ly)?|adequate(?:ly)?|enough)\b/gi, 'meeting the minimum threshold as defined in project specifications')
+      .replace(/\b(immediately|instant(?:ly)?|at once|right away)\b/gi, 'within 500 milliseconds')
+      .replace(/\b(good|well|properly|correctly)\b/gi, 'in compliance with ISO/IEC/IEEE 29148 acceptance criteria')
+      .replace(/\b(large|huge|massive|significant)\b/gi, 'exceeding the defined capacity threshold')
+      .replace(/\b(small|minimal|minor)\b/gi, 'within the defined minimum resource boundary');
+
+    // Ensure it starts with lowercase (since "actor shall ..." prefix follows)
+    if (coreClause.length > 0) {
+      coreClause = coreClause.charAt(0).toLowerCase() + coreClause.slice(1);
+    }
+
+    // Strip trailing period before we add the full construction
+    coreClause = coreClause.replace(/\.$/, '').trim();
+
+    // Build formal IEEE 830 construction
+    let synthesized = `${actor} shall ${coreClause}`;
+
+    // Ensure ending period
+    if (!synthesized.endsWith('.')) {
+      synthesized += '.';
+    }
+
+    // Append NFR qualifications based on detected issue types
+    if (issues.some(i => i.type?.includes('Error') || i.code === 'DEF-17') && !synthesized.includes('rollback') && !synthesized.includes('timeout')) {
+      synthesized = synthesized.replace(/\.$/, ', initiating automated rollback and logging structured error traces if the operation fails to complete within 30 seconds.');
+    } else if (issues.some(i => i.type?.includes('NFR') || i.code === 'DEF-04') && !synthesized.includes('SLA') && !synthesized.includes('second')) {
+      synthesized = synthesized.replace(/\.$/, ', with a verified sub-second API response latency and 99.9% minimum service availability SLA.');
+    } else if (!synthesized.includes('second') && !synthesized.includes('%') && !synthesized.includes('ms')) {
+      // If no quantification was injected, add a domain-aware performance postfix
+      const perfPostfix = domainLower.includes('report') || domainLower.includes('analytics')
+        ? ', delivering results within 5 seconds for standard dataset sizes.'
+        : ', with operations completing within 1.5 seconds under nominal production load.';
+      synthesized = synthesized.replace(/\.$/, perfPostfix);
+    }
+
+    // Final safety: If synthesized exactly matches the raw input (no transformation happened), force a unique IEEE form
+    if (synthesized.trim().toLowerCase() === rawTrimmed.toLowerCase() || synthesized.length < 20) {
+      synthesized = `${actor} shall execute the specified ${domainLower !== 'general' ? domainLower + ' ' : ''}operation — ${coreClause || rawTrimmed.toLowerCase()} — within 1.5 seconds under standard production concurrency, adhering to IEEE Std 830 verifiability and completeness criteria.`;
+    }
+
+    return synthesized;
   }
 
   static generateIEEEText(raw: string): string {
-    let cleaned = raw.trim();
-
-    if (cleaned.toLowerCase().includes('should be fast')) {
-      return 'The system shall process user requests within 1.2 seconds under peak concurrency load.';
-    }
-    if (cleaned.toLowerCase().includes('prevent cheating') || cleaned.toLowerCase().includes('proctor')) {
-      return 'The system shall monitor candidate browser focus, log window blur events, and auto-submit the exam upon 3 unauthorized tab switches.';
-    }
-
-    cleaned = cleaned.replace(/^(should|must|website should|system needs to|we need|please make sure)/i, '');
-    cleaned = cleaned.charAt(0).toLowerCase() + cleaned.slice(1);
-
-    if (!cleaned.toLowerCase().startsWith('the system shall') && !cleaned.toLowerCase().startsWith('the user shall')) {
-      return `The system shall ${cleaned.replace(/^to\s+/i, '')}.`;
-    }
-
-    return cleaned;
+    return AIEngine.generateContextualIEEERewrite(raw);
   }
 
+  /**
+   * Dynamic Domain Recommendations Generator
+   * Returns tailored recommendations for existing domains or dynamically synthesizes
+   * comprehensive domain specifications for ANY new/custom domain.
+   */
   static getDomainRecommendations(domain: string): RecommendedRequirement[] {
-    const specific = DOMAIN_RECOMMENDATIONS[domain] || [];
-    const combined = [...specific, ...DEFAULT_DOMAIN_RECOMMENDATIONS];
+    if (DOMAIN_RECOMMENDATIONS[domain]) {
+      const specific = DOMAIN_RECOMMENDATIONS[domain];
+      const combined = [...specific, ...DEFAULT_DOMAIN_RECOMMENDATIONS];
+      return combined.map((rec, i) => ({
+        id: `REC-${domain.substring(0, 3).toUpperCase()}-${i + 1}`,
+        ...rec,
+        selected: false
+      }));
+    }
 
-    return combined.map((rec, i) => ({
-      id: `REC-${domain.substring(0, 3).toUpperCase()}-${i + 1}`,
-      ...rec,
-      selected: false
-    }));
+    // Dynamically synthesize recommendations for new custom domains
+    return AIEngine.getDynamicDomainRecommendations(domain);
+  }
+
+  static getDynamicDomainRecommendations(domain: string): RecommendedRequirement[] {
+    const cleanDomain = domain.trim() || 'Software System';
+    const prefix = cleanDomain.substring(0, 3).toUpperCase();
+
+    return [
+      {
+        id: `REC-${prefix}-01`,
+        category: 'Functional',
+        title: `${cleanDomain} Core Workflow & Processing Engine`,
+        description: `The system shall execute core ${cleanDomain.toLowerCase()} operational transactions, state transitions, and validation rules with real-time audit event logging.`,
+        domain: cleanDomain,
+        selected: false
+      },
+      {
+        id: `REC-${prefix}-02`,
+        category: 'Non-functional',
+        title: `High-Throughput SLA & Sub-Second Response Latency`,
+        description: `The system shall process ${cleanDomain.toLowerCase()} user requests within 1.2 seconds under a peak concurrency load of up to 10,000 active sessions with 99.95% availability.`,
+        domain: cleanDomain,
+        selected: false
+      },
+      {
+        id: `REC-${prefix}-03`,
+        category: 'Technical',
+        title: `AES-256 Encryption & Secure Data Sync API`,
+        description: `The system shall encrypt all sensitive ${cleanDomain.toLowerCase()} records using AES-256 at rest and enforce TLS 1.3 with OAuth 2.0 token authentication for all API integrations.`,
+        domain: cleanDomain,
+        selected: false
+      },
+      {
+        id: `REC-${prefix}-04`,
+        category: 'System',
+        title: `Automated Health Monitoring & Circuit Breaker Failover`,
+        description: `The system shall monitor telemetry, processing queues, and database health metrics every 15 seconds, triggering automated failover and administrative alerts upon anomaly detection.`,
+        domain: cleanDomain,
+        selected: false
+      },
+      {
+        id: `REC-${prefix}-05`,
+        category: 'User',
+        title: `Role-Based Stakeholder Dashboard & Analytical Reports`,
+        description: `The system shall provide customized responsive dashboards with exportable PDF/CSV reports tailored to operational roles and end-users of the ${cleanDomain.toLowerCase()} platform.`,
+        domain: cleanDomain,
+        selected: false
+      },
+      {
+        id: `REC-${prefix}-06`,
+        category: 'Business',
+        title: `Regulatory Compliance & Immutable Audit Log Matrix`,
+        description: `The system shall maintain an immutable, timestamped audit ledger of all ${cleanDomain.toLowerCase()} transactions adhering to international industry governance standards.`,
+        domain: cleanDomain,
+        selected: false
+      }
+    ];
+  }
+
+  /**
+   * Dynamic Cross-Requirement Conflict & Semantic Duplicate Detector
+   * Analyzes the project's actual requirements to identify contradictions and redundancies.
+   */
+  static detectConflictsAndDuplicates(requirements: Requirement[], domain: string): import('../types').RequirementConflict[] {
+    const conflicts: import('../types').RequirementConflict[] = [];
+    let confId = 1;
+
+    for (let i = 0; i < requirements.length; i++) {
+      for (let j = i + 1; j < requirements.length; j++) {
+        const reqA = requirements[i];
+        const reqB = requirements[j];
+        const lowerA = (reqA.description || '').toLowerCase();
+        const lowerB = (reqB.description || '').toLowerCase();
+
+        // Check 1: Cancellation / Timeframe Contradiction
+        const matchA = lowerA.match(/(\d+)\s*(hours?|hrs?|minutes?|mins?)\s*(before|prior)/i);
+        const matchB = lowerB.match(/(\d+)\s*(hours?|hrs?|minutes?|mins?)\s*(before|prior)/i);
+        if (matchA && matchB && matchA[1] !== matchB[1] && (lowerA.includes('cancel') || lowerA.includes('refund')) && (lowerB.includes('cancel') || lowerB.includes('refund'))) {
+          conflicts.push({
+            id: `CONF-${String(confId++).padStart(2, '0')}`,
+            reqAId: reqA.id,
+            reqBId: reqB.id,
+            titleA: reqA.title,
+            titleB: reqB.title,
+            conflictType: 'Time Limit',
+            explanation: `${reqA.id} permits operation ${matchA[0]} whereas ${reqB.id} mandates ${matchB[0]}. This creates an operational policy contradiction.`,
+            severity: 'High',
+            suggestedResolution: `Reconcile the time limit between ${reqA.id} and ${reqB.id} into a single harmonized business rule (e.g., standardizing on ${matchA[0]}).`
+          });
+        }
+
+        // Check 2: Offline Mode vs Real-time Continuous Cloud Sync
+        if ((lowerA.includes('offline') && lowerB.includes('real-time')) || (lowerA.includes('real-time') && lowerB.includes('offline'))) {
+          conflicts.push({
+            id: `CONF-${String(confId++).padStart(2, '0')}`,
+            reqAId: reqA.id,
+            reqBId: reqB.id,
+            titleA: reqA.title,
+            titleB: reqB.title,
+            conflictType: 'Feasibility',
+            explanation: `${reqA.id} specifies disconnected offline operation while ${reqB.id} requires synchronous real-time cloud data updates.`,
+            severity: 'High',
+            suggestedResolution: 'Deploy a hybrid local sync model: buffer client transactions locally in IndexedDB and synchronize via background workers upon network reconnect.'
+          });
+        }
+
+        // Check 3: Semantic Redundancy / Duplicate
+        const wordsA = new Set(lowerA.split(/\s+/).filter(w => w.length > 3));
+        const wordsB = new Set(lowerB.split(/\s+/).filter(w => w.length > 3));
+        const intersection = [...wordsA].filter(w => wordsB.has(w));
+        const similarity = Math.round((intersection.length / Math.max(wordsA.size, wordsB.size, 1)) * 100);
+
+        if (similarity >= 65) {
+          conflicts.push({
+            id: `CONF-${String(confId++).padStart(2, '0')}`,
+            reqAId: reqA.id,
+            reqBId: reqB.id,
+            titleA: reqA.title,
+            titleB: reqB.title,
+            conflictType: 'Business Rule',
+            explanation: `${reqA.id} and ${reqB.id} share ${similarity}% semantic overlap and describe essentially duplicate capabilities.`,
+            severity: 'Medium',
+            suggestedResolution: `Merge ${reqA.id} and ${reqB.id} into a single consolidated requirement statement to eliminate redundant maintenance overhead.`
+          });
+        }
+      }
+    }
+
+    return conflicts;
   }
 
   static generateUserStories(requirements: Requirement[]): UserStory[] {
@@ -729,26 +1365,66 @@ export class AIEngine {
   }
 
   static generateRisks(requirements: Requirement[]): RiskItem[] {
-    return [
-      {
-        id: 'RSK-01',
-        title: 'Requirement Volatility & Unclear SLAs',
+    const risks: RiskItem[] = [];
+    let rId = 1;
+
+    const issueReqs = requirements.filter(r => r.issues.length > 0);
+    if (issueReqs.length > 0) {
+      risks.push({
+        id: `RSK-${String(rId++).padStart(2, '0')}`,
+        title: 'Requirement Ambiguity & SLA Volatility Risk',
         category: 'Requirement Volatility',
         impact: 'High',
-        probability: 'Medium',
-        mitigation: 'Implement formal IEEE change control sign-off and version snapshot tagging.',
-        affectedRequirementIds: requirements.slice(0, 2).map(r => r.id)
-      },
-      {
-        id: 'RSK-02',
-        title: 'Third-Party Integration Throttling & Latency',
+        probability: 'High',
+        mitigation: 'Implement formal IEEE 830 acceptance criteria sign-offs and version snapshot locks.',
+        affectedRequirementIds: issueReqs.slice(0, 4).map(r => r.id)
+      });
+    }
+
+    const techReqs = requirements.filter(r => r.category === 'Technical' || r.category === 'Non-functional');
+    if (techReqs.length > 0) {
+      risks.push({
+        id: `RSK-${String(rId++).padStart(2, '0')}`,
+        title: 'Concurrency Bottleneck & Integration Latency',
         category: 'Dependency Issue',
         impact: 'High',
-        probability: 'High',
-        mitigation: 'Implement circuit breaker pattern, localized caching, and background sync queues.',
-        affectedRequirementIds: requirements.filter(r => r.category === 'Technical').map(r => r.id)
-      }
-    ];
+        probability: 'Medium',
+        mitigation: 'Deploy connection pooling, circuit breaker pattern, and Redis cache layer with idempotent retries.',
+        affectedRequirementIds: techReqs.slice(0, 4).map(r => r.id)
+      });
+    }
+
+    const secReqs = requirements.filter(r => 
+      r.issues.some(i => i.code === 'DEF-13' || i.type === 'Security Gap') || 
+      r.description.toLowerCase().includes('auth') || 
+      r.description.toLowerCase().includes('payment') || 
+      r.description.toLowerCase().includes('security')
+    );
+    if (secReqs.length > 0) {
+      risks.push({
+        id: `RSK-${String(rId++).padStart(2, '0')}`,
+        title: 'Security Control Gap & Identity Vulnerability Risk',
+        category: 'Requirement Risk',
+        impact: 'High',
+        probability: 'Medium',
+        mitigation: 'Mandate AES-256 encryption, TLS 1.3 certificate pinning, and multi-factor authentication.',
+        affectedRequirementIds: secReqs.slice(0, 4).map(r => r.id)
+      });
+    }
+
+    if (risks.length === 0) {
+      risks.push({
+        id: 'RSK-01',
+        title: 'Scope Expansion & Baseline Volatility',
+        category: 'Project Risk',
+        impact: 'Medium',
+        probability: 'Low',
+        mitigation: 'Enforce baseline IEEE change control procedures and version history snapshots.',
+        affectedRequirementIds: requirements.slice(0, 2).map(r => r.id)
+      });
+    }
+
+    return risks;
   }
 
   static generateRTM(requirements: Requirement[], useCases: UseCase[], testCases: TestCase[]): RTMRow[] {
@@ -770,8 +1446,12 @@ export class AIEngine {
 
   static generateComplianceChecks(requirements: Requirement[]): ComplianceCheck[] {
     const total = requirements.length;
-    const ambiguousCount = requirements.filter(r => r.issues.some(i => i.type === 'Ambiguous word')).length;
-    const missingActorCount = requirements.filter(r => r.issues.some(i => i.type === 'Missing actor')).length;
+    const ambiguousCount = requirements.filter(r => r.issues.some(i => 
+      i.type === 'Ambiguous word' || i.type === 'Ambiguity' || i.type === 'Vague / Subjective Words' || i.code === 'DEF-01' || i.code === 'DEF-02'
+    )).length;
+    const missingActorCount = requirements.filter(r => r.issues.some(i => 
+      i.type === 'Missing actor' || i.type === 'Missing Actor / Stakeholder' || i.code === 'DEF-09'
+    )).length;
 
     return [
       { id: 'CMP-01', criterion: 'Completeness', description: 'All core sub-modules, constraints, and exceptions defined.', score: 92, status: 'Passed', recommendation: 'Specification covers core functional paths.' },

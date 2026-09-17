@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AlertOctagon, Sparkles, CheckCircle2, AlertTriangle, ArrowRight, ShieldAlert, GitMerge, Zap, ScanLine, RefreshCw } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { RequirementConflict } from '../../types';
+import { AIEngine } from '../../services/aiEngine';
 
 const DOMAIN_CONFLICTS: Record<string, RequirementConflict[]> = {
   'Railway Reservation System': [
@@ -108,7 +109,10 @@ export const ModuleConflictDetector: React.FC = () => {
 
   if (!currentProject) return null;
 
-  const domainConflicts = DOMAIN_CONFLICTS[currentProject.domain] ?? DOMAIN_CONFLICTS['Railway Reservation System'];
+  const dynamicConflicts = AIEngine.detectConflictsAndDuplicates(currentProject.requirements, currentProject.domain);
+  const domainConflicts = dynamicConflicts.length > 0 
+    ? dynamicConflicts 
+    : (DOMAIN_CONFLICTS[currentProject.domain] ?? DOMAIN_CONFLICTS['Railway Reservation System'] ?? []);
 
   const handleScan = () => {
     setScanning(true);

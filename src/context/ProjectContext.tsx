@@ -49,6 +49,9 @@ type ActiveTab =
   | 'refinement-lab'
   | 'bad-req-detector'
   | 'llm-eval-lab'
+  | 'ai-model-studio'
+  | '3d-simulations'
+  | 'system-diagrams'
   | 'user-manual';
 
 interface ProjectContextType {
@@ -68,6 +71,8 @@ interface ProjectContextType {
   setIsGlobalSearchOpen: (open: boolean) => void;
   isHistoryOpen: boolean;
   setIsHistoryOpen: (open: boolean) => void;
+  isAISettingsOpen: boolean;
+  setIsAISettingsOpen: (open: boolean) => void;
   
   // Actions
   selectProject: (projectId: string) => void;
@@ -76,6 +81,7 @@ interface ProjectContextType {
   updateRequirement: (updated: Requirement) => void;
   deleteRequirement: (id: string) => void;
   acceptImprovedRequirement: (id: string) => void;
+  applyRequirementRewrite: (id: string, newText: string) => void;
   addRecommendedRequirements: (recs: RecommendedRequirement[]) => void;
   regenerateArtifacts: () => void;
   createVersionSnapshot: (description: string) => void;
@@ -475,6 +481,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isAIChatOpen, setIsAIChatOpen] = useState<boolean>(false);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState<boolean>(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
+  const [isAISettingsOpen, setIsAISettingsOpen] = useState<boolean>(false);
 
   // Sync to local storage
   useEffect(() => {
@@ -566,13 +573,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   };
 
-  const acceptImprovedRequirement = (id: string) => {
+  const applyRequirementRewrite = (id: string, newText: string) => {
     updateProjectState(proj => {
       const reqs = proj.requirements.map(r => {
-        if (r.id === id && r.improvedText) {
+        if (r.id === id) {
           return {
             ...r,
-            description: r.improvedText,
+            description: newText,
+            improvedText: newText,
             issues: [],
             status: 'Approved' as const,
             isImprovedAccepted: true
@@ -589,6 +597,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         testCases: AIEngine.generateTestCases(reqs)
       };
     });
+  };
+
+  const acceptImprovedRequirement = (id: string) => {
+    const target = currentProject?.requirements.find(r => r.id === id);
+    const rewrite = target?.improvedText || (target ? AIEngine.generateContextualIEEERewrite(target.description, currentProject?.domain) : '');
+    if (rewrite) {
+      applyRequirementRewrite(id, rewrite);
+    }
   };
 
   const addRecommendedRequirements = (selectedRecs: RecommendedRequirement[]) => {
@@ -676,12 +692,15 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setIsGlobalSearchOpen,
         isHistoryOpen,
         setIsHistoryOpen,
+        isAISettingsOpen,
+        setIsAISettingsOpen,
         selectProject,
         createNewProject,
         addRequirementsToProject,
         updateRequirement,
         deleteRequirement,
         acceptImprovedRequirement,
+        applyRequirementRewrite,
         addRecommendedRequirements,
         regenerateArtifacts,
         createVersionSnapshot,
