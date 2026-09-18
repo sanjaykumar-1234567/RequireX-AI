@@ -21,13 +21,13 @@ export const AI_PROVIDERS: Record<AIProviderId, AIProviderConfig> = {
   gemini: {
     id: 'gemini',
     name: 'Google Gemini (FREE)',
-    description: 'Free official API via Google AI Studio. Flash-series models (2.0 Flash, 1.5 Flash) available FREE — no credit card needed. Pro models require billing. Rate limits vary by project; check AI Studio dashboard for your quota.',
+    description: 'Free official API via Google AI Studio. Flash-series models (3.6 Flash, 1.5 Flash) available FREE — no credit card needed. Pro models require billing. Rate limits vary by project; check AI Studio dashboard for your quota.',
     models: [
       { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', tag: 'Free — Recommended' },
-      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', tag: 'Free — Best Speed' },
       { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', tag: 'Free — Ultra Fast' },
+      { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash 8B', tag: 'Free — Lightweight' },
       { id: 'gemini-1.5-flash-latest', name: 'Gemini 1.5 Flash Latest', tag: 'Free Tier' },
-      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', tag: 'Limited Free / Paid' }
+      { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro Latest', tag: 'Limited Free / Paid' }
     ],
     defaultModel: 'gemini-3.6-flash',
     keyPlaceholder: 'AIzaSy...',
@@ -54,6 +54,7 @@ export const AI_PROVIDERS: Record<AIProviderId, AIProviderConfig> = {
     name: 'OpenRouter (Free & Paid)',
     description: 'Unified gateway for GPT-4o, Claude 3.5, Gemini, and DeepSeek. Includes 100% FREE models alongside paid flagship models.',
     models: [
+      { id: 'openrouter/free', name: 'OpenRouter Free Router', tag: '100% Free Router' },
       { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 (Free Tier)', tag: '100% Free' },
       { id: 'meta-llama/llama-3.1-8b-instruct:free', name: 'Llama 3.1 8B (Free Tier)', tag: '100% Free' },
       { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free Tier)', tag: '100% Free' },
@@ -121,17 +122,29 @@ export class AIConfigManager {
    * Retrieve stored API key for a provider (checking localStorage then Vite env)
    */
   static getApiKey(provider: AIProviderId): string {
-    const local = localStorage.getItem(STORAGE_KEYS[provider]);
-    if (local && local.trim()) return local.trim();
+    if (typeof localStorage !== 'undefined') {
+      const local = localStorage.getItem(STORAGE_KEYS[provider]);
+      if (local && local.trim()) return local.trim();
+    }
 
-    // Check Vite environment variables
-    const envMap: Record<AIProviderId, string | undefined> = {
-      openrouter: import.meta.env.VITE_OPENROUTER_API_KEY,
-      openai: import.meta.env.VITE_OPENAI_API_KEY,
-      anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
-      gemini: import.meta.env.VITE_GEMINI_API_KEY,
-      deepseek: import.meta.env.VITE_DEEPSEEK_API_KEY,
-      groq: import.meta.env.VITE_GROQ_API_KEY
+    // Check Vite / Node environment variables
+    const getEnv = (key: string): string => {
+      if (typeof import.meta !== 'undefined' && (import.meta as any).env?.[key]) {
+        return (import.meta as any).env[key];
+      }
+      if (typeof process !== 'undefined' && process.env?.[key]) {
+        return process.env[key] || '';
+      }
+      return '';
+    };
+
+    const envMap: Record<AIProviderId, string> = {
+      openrouter: getEnv('VITE_OPENROUTER_API_KEY'),
+      openai: getEnv('VITE_OPENAI_API_KEY'),
+      anthropic: getEnv('VITE_ANTHROPIC_API_KEY'),
+      gemini: getEnv('VITE_GEMINI_API_KEY'),
+      deepseek: getEnv('VITE_DEEPSEEK_API_KEY'),
+      groq: getEnv('VITE_GROQ_API_KEY')
     };
 
     return envMap[provider] || '';
@@ -141,6 +154,7 @@ export class AIConfigManager {
    * Save API key for a provider to browser local storage
    */
   static setApiKey(provider: AIProviderId, key: string): void {
+    if (typeof localStorage === 'undefined') return;
     if (!key || !key.trim()) {
       localStorage.removeItem(STORAGE_KEYS[provider]);
     } else {
@@ -152,8 +166,10 @@ export class AIConfigManager {
    * Get active provider preference
    */
   static getActiveProvider(): AIProviderId {
-    const active = localStorage.getItem('requirex_active_provider') as AIProviderId;
-    if (active && AI_PROVIDERS[active]) return active;
+    if (typeof localStorage !== 'undefined') {
+      const active = localStorage.getItem('requirex_active_provider') as AIProviderId;
+      if (active && AI_PROVIDERS[active]) return active;
+    }
 
     // Detect first provider with a configured key
     const providers: AIProviderId[] = ['gemini', 'groq', 'openrouter', 'openai', 'anthropic', 'deepseek'];
@@ -168,7 +184,9 @@ export class AIConfigManager {
    * Set active provider preference
    */
   static setActiveProvider(provider: AIProviderId): void {
-    localStorage.setItem('requirex_active_provider', provider);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('requirex_active_provider', provider);
+    }
   }
 
   /**
@@ -183,8 +201,10 @@ export class AIConfigManager {
    * Get active model ID for a provider
    */
   static getActiveModel(provider: AIProviderId): string {
-    const custom = localStorage.getItem(`requirex_model_${provider}`);
-    if (custom) return custom;
+    if (typeof localStorage !== 'undefined') {
+      const custom = localStorage.getItem(`requirex_model_${provider}`);
+      if (custom) return custom;
+    }
     return AI_PROVIDERS[provider].defaultModel;
   }
 
@@ -192,6 +212,8 @@ export class AIConfigManager {
    * Set active model ID for a provider
    */
   static setActiveModel(provider: AIProviderId, modelId: string): void {
-    localStorage.setItem(`requirex_model_${provider}`, modelId);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(`requirex_model_${provider}`, modelId);
+    }
   }
 }

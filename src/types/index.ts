@@ -11,22 +11,32 @@ export type SeverityLevel = 'High' | 'Medium' | 'Low' | 'Critical';
 export type IssueType = 
   | 'Ambiguous word' 
   | 'Ambiguity'
+  | 'Ambiguity / Vagueness'
   | 'Vague / Subjective Words'
+  | 'Subjective Terminology'
   | 'Incomplete statement' 
   | 'Incomplete Requirement'
+  | 'Missing Object / Unclear Action'
   | 'Weak requirement' 
   | 'Missing Non-Functional Requirement'
   | 'Non-testable requirement' 
   | 'Non-Verifiable / Non-Testable'
   | 'Conflicting requirement' 
   | 'Inconsistency / Contradiction'
+  | 'Cross-Requirement Contradiction'
   | 'Duplicate requirement' 
   | 'Duplicate / Redundant Requirement'
+  | 'Compound / Non-Atomic Requirement'
   | 'Non-Atomic Requirement'
   | 'Missing actor' 
   | 'Missing Actor / Stakeholder'
   | 'Missing Condition / Trigger'
   | 'Missing Inputs and Outputs'
+  | 'Undefined Quantity'
+  | 'Optional / Mandatory Ambiguity'
+  | 'Pronoun / Reference Ambiguity'
+  | 'Missing Acceptance Criteria'
+  | 'Traceability Gap'
   | 'Missing constraint' 
   | 'Unclear Quantitative Constraint'
   | 'Security Gap'
@@ -42,12 +52,17 @@ export type IssueType =
 export interface QualityIssue {
   id: string;
   type: IssueType;
+  category?: string;
   problem: string;
+  problematicPhrase?: string;
+  explanation?: string;
   reason: string;
   suggestedCorrection: string;
+  suggestedImprovement?: string;
   confidenceScore: number;
   severity: SeverityLevel;
   code?: string;
+  requirementId?: string;
   categoryBadge?: string;
   missingElements?: string[];
   relatedReqId?: string;
@@ -55,19 +70,109 @@ export interface QualityIssue {
   ieeeRewrite?: string;
 }
 
+export type RequirementLifecycleStatus = 
+  | 'RAW' 
+  | 'ANALYZED' 
+  | 'NEEDS_REVIEW' 
+  | 'AI_SUGGESTION' 
+  | 'USER_EDITED' 
+  | 'USER_APPROVED' 
+  | 'REJECTED'
+  // Backward compatibility:
+  | 'Draft'
+  | 'Needs Refinement'
+  | 'Under Review'
+  | 'Approved';
+
+export type ReviewDecision = 'Pending' | 'Approved' | 'Rejected' | 'Modified';
+
 export interface Requirement {
-  id: string;
+  id: string;                         // Persistent unique ID, e.g. "REQ-01"
   title: string;
-  description: string;
-  category: RequirementCategory;
+  description: string;                // Current active requirement text
+  rawSource: string;                  // Pristine original user input (NEVER overwritten)
+  originalRawText?: string;           // Backward-compatible alias for rawSource
+  currentText?: string;               // Explicit alias for description
+  suggestedText?: string;             // Safe IEEE rewrite proposal (no arbitrary numbers)
+  improvedText?: string;              // Backward-compatible alias for suggestedText
+  approvedText?: string;              // User-approved text (strictly set upon explicit human approval)
+  optionalRefinement?: string;        // Optional performance refinement tagged [AI Suggested Value]
+  category: RequirementCategory;      // Primary classification
   priority: PriorityLevel;
-  status: 'Draft' | 'Analyzed' | 'Improved' | 'Approved';
+  status: RequirementLifecycleStatus;
+  reviewDecision: ReviewDecision;
+  isSRSReady: boolean;
   issues: QualityIssue[];
-  improvedText?: string;
-  isImprovedAccepted?: boolean;
+  tags?: string[];                    // Semantic tags (e.g. ['Performance', 'Ambiguity'])
   domain: string;
   version: number;
   createdAt: string;
+  isImprovedAccepted?: boolean;
+  rejectionReason?: string;
+  reviewedAt?: string;
+}
+
+export interface NormalizedModelOutput {
+  providerId: string;
+  providerName: string;
+  modelId: string;
+  actualModelId?: string;
+  fallbackUsed?: boolean;
+  primaryModelAttempted?: string;
+  status: 'success' | 'error' | 'not_configured' | 'rate_limited' | 'timeout';
+  latencyMs: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  costEstimate?: string;
+  classification: RequirementCategory;
+  detectedVagueTerms: string[];
+  defectCodes?: string[];
+  issues: {
+    code?: string;
+    type: string;
+    problem: string;
+    reason: string;
+    severity: SeverityLevel;
+  }[];
+  isTestable: boolean;
+  testabilityAssessment: string;
+  safeRewrite: string;
+  optionalRefinement?: string;
+  suggestedAcceptanceCriteria: string[];
+  rawOutput?: string;
+  errorMessage?: string;
+}
+
+export interface ModelAgreementAnalysis {
+  totalEvaluated: number;
+  classificationConsensus: {
+    category: RequirementCategory;
+    percentage: number;
+    agreementLevel: 'High Agreement' | 'Partial Agreement' | 'Disagreement';
+  };
+  vagueTermsIdentified: {
+    term: string;
+    modelsAgreeing: string[];
+  }[];
+  testabilityConsensus: {
+    isTestable: boolean;
+    percentage: number;
+  };
+  sharedDefectCodes?: {
+    code: string;
+    name: string;
+    modelsAgreeing: string[];
+  }[];
+  modelSpecificDefectCodes?: {
+    code: string;
+    name: string;
+    model: string;
+  }[];
+  defectAgreementRate?: number;
+  safeRewritePresentCount?: number;
+  acceptanceCriteriaPresentCount?: number;
+  rewriteAlignmentScore: number;
+  overallConsensusLevel: 'Strong Agreement' | 'Moderate Consensus' | 'Significant Divergence' | 'Insufficient Models';
 }
 
 export interface RecommendedRequirement {

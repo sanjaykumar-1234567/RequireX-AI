@@ -26,14 +26,21 @@ import {
   ShieldAlert,
   Flame,
   Copy,
-  KeyRound
+  KeyRound,
+  CheckSquare,
+  Square,
+  Code2,
+  Play,
+  Scale,
+  X
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { AIEngine } from '../../services/aiEngine';
 import { ExportService, generateSRSMarkdown } from '../../services/exportService';
 import { AIConfigManager } from '../../services/aiConfig';
 import { RealAIService } from '../../services/realAIService';
-import { Requirement, PriorityLevel, RequirementCategory } from '../../types';
+import { MultiAIService, AVAILABLE_MULTI_AI_PROVIDERS } from '../../services/multiAIService';
+import { Requirement, PriorityLevel, RequirementCategory, NormalizedModelOutput, ModelAgreementAnalysis } from '../../types';
 
 interface AIModelProfile {
   id: string;
@@ -159,7 +166,7 @@ const AI_MODELS: AIModelProfile[] = [
 ];
 
 export const ModuleAIModelStudio: React.FC = () => {
-  const { currentProject, applyRequirementRewrite, setIsAISettingsOpen } = useProject();
+  const { currentProject, applyRequirementRewrite, updateRequirement, setIsAISettingsOpen } = useProject();
   const [selectedModelId, setSelectedModelId] = useState<string>('claude-3-5-sonnet');
   const [activeTab, setActiveTab] = useState<'results' | 'analytics' | 'comparison' | 'srs'>('results');
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
@@ -168,11 +175,75 @@ export const ModuleAIModelStudio: React.FC = () => {
   const [appliedReqIds, setAppliedReqIds] = useState<Set<string>>(new Set());
   const [analysisStatus, setAnalysisStatus] = useState<{ isRealAI: boolean; latencyMs: number; provider: string } | null>(null);
 
+  // Multi-AI Workbench State
+  const [selectedMultiProviders, setSelectedMultiProviders] = useState<string[]>(['baseline', 'gemini']);
+  const [multiAIOutputs, setMultiAIOutputs] = useState<NormalizedModelOutput[]>([]);
+  const [agreementAnalysis, setAgreementAnalysis] = useState<ModelAgreementAnalysis | null>(null);
+  const [isMultiRunning, setIsMultiRunning] = useState<boolean>(false);
+  const [rawOutputInspection, setRawOutputInspection] = useState<NormalizedModelOutput | null>(null);
+  const [refinementAdoptedReqId, setRefinementAdoptedReqId] = useState<string | null>(null);
+
   const activeModel = AI_MODELS.find(m => m.id === selectedModelId) || AI_MODELS[1];
   const hasKey = AIConfigManager.hasAnyApiKey();
 
   // Requirements to analyze
   const requirements = currentProject?.requirements || [];
+
+  // Multi-AI Evaluation Handler
+  const handleRunMultiAI = async () => {
+    if (requirements.length === 0) return;
+    setIsMultiRunning(true);
+    setRefinementAdoptedReqId(null);
+    try {
+      const activeReq = requirements[comparisonReqIndex];
+      const outputs = await MultiAIService.runMultiModelEvaluation(
+        activeReq.description,
+        currentProject?.domain || 'General',
+        selectedMultiProviders
+      );
+      setMultiAIOutputs(outputs);
+      const agreement = MultiAIService.computeModelAgreement(outputs);
+      setAgreementAnalysis(agreement);
+    } catch (e) {
+      console.error('Multi-AI evaluation execution error:', e);
+    } finally {
+      setIsMultiRunning(false);
+    }
+  };
+
+  // Adopt model rewrite into requirement refinement review workflow
+  const handleAdoptRewriteForRefinement = (reqId: string, rewriteText: string, optionalRef?: string) => {
+    if (!currentProject) return;
+    const req = currentProject.requirements.find(r => r.id === reqId);
+    if (req) {
+      updateRequirement({
+        ...req,
+        rawSource: req.rawSource || req.description,
+        currentText: req.currentText || req.description,
+        suggestedText: rewriteText,
+        improvedText: rewriteText,
+        optionalRefinement: optionalRef,
+        status: 'AI_SUGGESTION',
+        reviewDecision: 'Pending',
+        isImprovedAccepted: false,
+        isSRSReady: false
+      });
+      setRefinementAdoptedReqId(reqId);
+      setTimeout(() => setRefinementAdoptedReqId(null), 4000);
+    }
+  };
+
+  // Toggle multi-AI provider selection
+  const handleToggleMultiProvider = (providerId: string) => {
+    // Keep at least 1 provider selected
+    if (selectedMultiProviders.includes(providerId)) {
+      if (selectedMultiProviders.length > 1) {
+        setSelectedMultiProviders(prev => prev.filter(id => id !== providerId));
+      }
+    } else {
+      setSelectedMultiProviders(prev => [...prev, providerId]);
+    }
+  };
 
   // Model execution (Real AI when API key present, or local engine)
   const handleRunAnalysis = async () => {
@@ -377,7 +448,7 @@ export const ModuleAIModelStudio: React.FC = () => {
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold font-mono text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
             <Cpu className="h-3.5 w-3.5 text-cyan-400" />
-            <span>Choose AI Model Architecture ({AI_MODELS.length} Available)</span>
+            <span>Choose AI Model Architecture • Reference Profiles ({AI_MODELS.length} Available)</span>
           </span>
           <span className="text-[11px] font-mono text-slate-400">
             Active: <strong className="text-cyan-400">{activeModel.name}</strong>
@@ -399,7 +470,7 @@ export const ModuleAIModelStudio: React.FC = () => {
               >
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[9px] font-bold text-slate-400">{model.provider}</span>
+                    <span className="text-[9px] font-bold text-slate-400">{model.provider} • PROFILE</span>
                     <span className={`px-1.5 py-0.2 rounded text-[8px] font-bold border ${model.badgeColor}`}>
                       {model.badge}
                     </span>
@@ -409,8 +480,8 @@ export const ModuleAIModelStudio: React.FC = () => {
                 </div>
 
                 <div className="mt-3 pt-2 border-t border-white/10 flex items-center justify-between text-[10px]">
-                  <span className="text-emerald-400 font-bold">{model.accuracyRate}% Acc</span>
-                  <span className="text-slate-400">{model.speedMs}ms</span>
+                  <span className="text-emerald-400 font-bold" title="Benchmark Reference Accuracy">{model.accuracyRate}% Profile Acc</span>
+                  <span className="text-slate-400" title="Benchmark Reference Latency">{model.speedMs}ms Ref Latency</span>
                 </div>
               </button>
             );
@@ -421,22 +492,22 @@ export const ModuleAIModelStudio: React.FC = () => {
       {/* Model Profile & Active Stats Bar */}
       <div className="glass-card p-5 rounded-2xl border border-white/10 font-mono text-xs grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <div>
-          <span className="text-[10px] text-slate-400 uppercase block">Selected Engine</span>
+          <span className="text-[10px] text-slate-400 uppercase block">Profile Engine</span>
           <span className="text-xs font-bold text-white truncate block">{activeModel.name}</span>
         </div>
         <div>
-          <span className="text-[10px] text-slate-400 uppercase block">Accuracy / F1</span>
+          <span className="text-[10px] text-slate-400 uppercase block">Profile Accuracy / F1</span>
           <span className="text-xs font-bold text-emerald-400">{activeModel.accuracyRate}% ({activeModel.f1Score})</span>
         </div>
         <div>
-          <span className="text-[10px] text-slate-400 uppercase block">Inference Speed</span>
+          <span className="text-[10px] text-slate-400 uppercase block">Reference Latency</span>
           <span className="text-xs font-bold text-cyan-400 flex items-center gap-1">
             <Clock className="h-3 w-3" />
-            {activeModel.speedMs} ms
+            {activeModel.speedMs} ms (Ref)
           </span>
         </div>
         <div>
-          <span className="text-[10px] text-slate-400 uppercase block">Est. Execution Cost</span>
+          <span className="text-[10px] text-slate-400 uppercase block">Est. Profile Cost</span>
           <span className="text-xs font-bold text-amber-400 flex items-center gap-1">
             <DollarSign className="h-3 w-3" />
             ${estimatedCost}
@@ -862,134 +933,521 @@ export const ModuleAIModelStudio: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 3: Head-to-Head Model Comparison */}
+      {/* Tab 3: Real Multi-AI / LLM Evaluation Workbench */}
       {activeTab === 'comparison' && (
         <div className="space-y-6">
-          {/* Comparison KPI Table */}
-          <div className="glass-card rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-white/10 bg-black/60 font-mono flex items-center justify-between">
-              <span className="text-xs font-bold text-white uppercase">
-                All 6 AI Models Compared on {currentProject.name} Requirements
-              </span>
-              <span className="text-xs text-cyan-400 font-bold">
-                Efficiency vs Correctness Benchmarking
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs font-mono">
-                <thead>
-                  <tr className="border-b border-white/15 bg-black/80 text-slate-400 uppercase text-[10px]">
-                    <th className="py-3 px-4 font-bold">AI Model</th>
-                    <th className="py-3 px-4 font-bold">Provider</th>
-                    <th className="py-3 px-4 font-bold">Accuracy</th>
-                    <th className="py-3 px-4 font-bold">Defect Recall</th>
-                    <th className="py-3 px-4 font-bold">Latency</th>
-                    <th className="py-3 px-4 font-bold">Cost / 1K</th>
-                    <th className="py-3 px-4 font-bold">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {AI_MODELS.map(m => {
-                    const isSelected = selectedModelId === m.id;
-                    return (
-                      <tr key={m.id} className={`hover:bg-white/[0.02] transition ${isSelected ? 'bg-cyan-500/10' : ''}`}>
-                        <td className="py-3.5 px-4">
-                          <span className="font-bold text-white text-xs block">{m.name}</span>
-                          <span className={`px-1.5 py-0.2 rounded text-[8px] font-bold border inline-block mt-0.5 ${m.badgeColor}`}>
-                            {m.badge}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-300">{m.provider}</td>
-                        <td className="py-3.5 px-4 text-emerald-400 font-bold">{m.accuracyRate}%</td>
-                        <td className="py-3.5 px-4 text-cyan-400 font-bold">{m.recallRate}%</td>
-                        <td className="py-3.5 px-4 text-slate-300">{m.speedMs} ms</td>
-                        <td className="py-3.5 px-4 text-amber-400 font-bold">${m.costPer1K}</td>
-                        <td className="py-3.5 px-4">
-                          <button
-                            onClick={() => { setSelectedModelId(m.id); setActiveTab('results'); }}
-                            className={`px-3 py-1 rounded-lg text-xs font-mono font-bold transition cursor-pointer ${
-                              isSelected ? 'bg-cyan-500 text-black shadow-neon-cyan' : 'bg-surface hover:bg-surface-hover text-slate-300 border border-white/10'
-                            }`}
-                          >
-                            {isSelected ? 'Active Model' : 'Select Model'}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Head-to-Head Rewrite Comparison Box */}
-          {requirements.length > 0 && (
-            <div className="glass-card p-6 rounded-2xl border border-white/10 space-y-4 font-mono">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-cyan-400" />
-                  <span>Head-to-Head Specification Rewrite Comparison</span>
-                </h3>
-                <div className="flex items-center space-x-2">
-                  <span className="text-[10px] text-slate-400">Select Requirement:</span>
-                  <select
-                    value={comparisonReqIndex}
-                    onChange={e => setComparisonReqIndex(Number(e.target.value))}
-                    className="bg-black/60 border border-white/15 rounded-lg py-1 px-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 cursor-pointer"
-                  >
-                    {requirements.map((r, i) => (
-                      <option key={r.id} value={i} className="bg-[#12121A] text-white">
-                        {r.id}: {r.title.substring(0, 30)}...
-                      </option>
-                    ))}
-                  </select>
+          {/* Multi-AI Control Panel */}
+          <div className="glass-card p-6 rounded-2xl border border-white/10 space-y-5 font-mono">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/10 pb-4">
+              <div>
+                <div className="flex items-center space-x-2 text-cyan-400 text-xs font-bold mb-1">
+                  <Scale className="h-4 w-4" />
+                  <span>MULTI-PROVIDER INFERENCE WORKBENCH • FREE-TIER FIRST</span>
                 </div>
-              </div>
-
-              {/* Raw Statement */}
-              <div className="bg-black/60 p-3 rounded-xl border border-red-500/20">
-                <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider block mb-1">
-                  ORIGINAL REQUIREMENT INPUT [{requirements[comparisonReqIndex]?.id}]:
-                </span>
-                <p className="text-xs text-slate-200 font-mono italic">
-                  "{requirements[comparisonReqIndex]?.description}"
+                <h2 className="text-xl font-extrabold text-white">Multi-AI Requirement Evaluation &amp; Comparison</h2>
+                <p className="text-xs text-slate-300 mt-1 font-sans max-w-2xl">
+                  Evaluate requirements across multiple real AI providers with identical structured prompts. Compares the <strong className="text-cyan-300">Deterministic Baseline</strong> against <strong className="text-emerald-300">Google Gemini</strong>, Groq, and OpenRouter without fabricated data.
                 </p>
               </div>
 
-              {/* 3 Top Models Rewrite Side-by-Side */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
-                <div className="p-4 rounded-xl bg-cyan-950/30 border border-cyan-400/40 space-y-2 shadow-neon-cyan">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-cyan-300">Claude 3.5 Sonnet</span>
-                    <span className="text-[9px] text-emerald-400">99.2% Precision</span>
+              {/* Run Evaluation Trigger */}
+              <button
+                onClick={handleRunMultiAI}
+                disabled={isMultiRunning || requirements.length === 0}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500 hover:opacity-90 text-black font-black text-xs shadow-neon-cyan transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 shrink-0"
+              >
+                {isMultiRunning ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin text-black" />
+                    <span>Executing Multi-AI Models...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 text-black fill-current" />
+                    <span>Run Multi-AI Evaluation</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Requirement Selector & Raw Statement */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <span>Target Requirement for Cross-Model Audit:</span>
+                </label>
+                <select
+                  value={comparisonReqIndex}
+                  onChange={e => setComparisonReqIndex(Number(e.target.value))}
+                  className="bg-black/60 border border-white/20 rounded-lg py-1.5 px-3 text-xs text-white focus:outline-none focus:border-cyan-400 cursor-pointer max-w-md"
+                >
+                  {requirements.map((r, i) => (
+                    <option key={r.id} value={i} className="bg-[#12121A] text-white">
+                      [{r.id}] {r.title.substring(0, 40)}...
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-black/60 border border-amber-500/30 text-xs space-y-1">
+                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                  ACTIVE REQUIREMENT INPUT [{requirements[comparisonReqIndex]?.id}]:
+                </span>
+                <p className="text-slate-200 italic font-mono">
+                  "{requirements[comparisonReqIndex]?.description}"
+                </p>
+              </div>
+            </div>
+
+            {/* Provider Checkbox Matrix */}
+            <div className="space-y-2 pt-2 border-t border-white/10">
+              <div className="flex items-center justify-between text-xs text-slate-300">
+                <span className="font-bold">Select AI Providers to Evaluate:</span>
+                <button
+                  onClick={() => setIsAISettingsOpen(true)}
+                  className="text-cyan-400 hover:text-cyan-300 text-[11px] underline cursor-pointer flex items-center gap-1"
+                >
+                  <KeyRound className="h-3 w-3" />
+                  <span>Configure API Keys in AI Settings</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {AVAILABLE_MULTI_AI_PROVIDERS.map(p => {
+                  const isSelected = selectedMultiProviders.includes(p.id);
+                  const isConfigured = MultiAIService.isProviderConfigured(p.id);
+
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => handleToggleMultiProvider(p.id)}
+                      className={`p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between space-y-2 ${
+                        isSelected
+                          ? 'bg-cyan-950/30 border-cyan-400/50 shadow-neon-cyan'
+                          : 'bg-black/40 border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center space-x-2">
+                          {isSelected ? (
+                            <CheckSquare className="h-4 w-4 text-cyan-400 shrink-0" />
+                          ) : (
+                            <Square className="h-4 w-4 text-slate-500 shrink-0" />
+                          )}
+                          <span className="font-bold text-xs text-white">{p.name}</span>
+                        </div>
+                        {p.accessTier === 'LOCAL_FREE' ? (
+                          <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                            LOCAL • FREE
+                          </span>
+                        ) : p.accessTier === 'FREE' ? (
+                          <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            FREE
+                          </span>
+                        ) : p.accessTier === 'FREE_TIER' ? (
+                          <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">
+                            FREE TIER
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                            PAID API
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-[10px] space-y-0.5">
+                        <span className="text-slate-400 block truncate">{p.modelId}</span>
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[9px] text-slate-500">{p.pricingLabel}</span>
+                          <span className={`text-[9px] font-bold ${isConfigured ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {isConfigured ? '✓ Configured' : '○ Key Required'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Toast Notification when rewrite adopted for refinement */}
+          {refinementAdoptedReqId && (
+            <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-400 flex items-center justify-between text-xs text-emerald-200 font-mono shadow-neon-emerald animate-fade-in">
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                <span>
+                  <strong>Success:</strong> Specification rewrite transferred to <strong>Requirement Review Workflow</strong> for [{refinementAdoptedReqId}]. Review and accept in Module 3 (Quality Audit).
+                </span>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
+                STATUS: AI_SUGGESTION (AWAITING HUMAN REVIEW IN QUALITY AUDIT)
+              </span>
+            </div>
+          )}
+
+          {/* Cross-Model Results Display */}
+          {multiAIOutputs.length > 0 && (
+            <div className="space-y-6">
+              {/* Head-to-Head Comparison Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 font-mono">
+                {multiAIOutputs.map((output, idx) => {
+                  const isSuccess = output.status === 'success';
+                  const isRateLimited = output.status === 'rate_limited';
+                  const isTimeout = output.status === 'timeout';
+                  const isNotConfigured = output.status === 'not_configured';
+
+                  return (
+                    <div
+                      key={`${output.providerId}-${idx}`}
+                      className={`glass-card p-5 rounded-2xl border flex flex-col justify-between space-y-4 ${
+                        isSuccess
+                          ? 'border-cyan-500/30 bg-surface/90 shadow-neon-cyan'
+                          : isRateLimited
+                            ? 'border-amber-500/30 bg-surface/80'
+                            : isTimeout
+                              ? 'border-orange-500/30 bg-surface/80'
+                              : 'border-white/10 bg-surface/60 opacity-85'
+                      }`}
+                    >
+                      {/* Provider Header */}
+                      <div className="space-y-2 border-b border-white/10 pb-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-sm text-white">{output.providerName}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                            isSuccess
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              : isRateLimited
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                : isTimeout
+                                  ? 'bg-orange-500/20 text-orange-300 border-orange-500/30'
+                                  : isNotConfigured
+                                    ? 'bg-slate-500/20 text-slate-300 border-white/10'
+                                    : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                          }`}>
+                            {isSuccess 
+                              ? '✓ Completed' 
+                              : isRateLimited 
+                                ? '⚠ Rate Limited' 
+                                : isTimeout
+                                  ? '⏱ Timeout'
+                                  : isNotConfigured 
+                                    ? '○ Not Configured' 
+                                    : '✕ Execution Failed'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[10px] text-slate-400">
+                          <span className="truncate max-w-[200px]" title={`Model: ${output.actualModelId || output.modelId}`}>
+                            Model used: <strong className="text-white">{output.actualModelId || output.modelId}</strong>
+                          </span>
+                          <span className="text-cyan-400 font-bold">{output.costEstimate || 'Free Tier'}</span>
+                        </div>
+
+                        {/* Fallback Information if applicable */}
+                        {output.fallbackUsed && output.primaryModelAttempted && (
+                          <div className="px-2 py-1 rounded bg-amber-500/15 border border-amber-500/30 text-[9px] text-amber-300 flex items-center justify-between">
+                            <span>Fallback used: <strong>Yes</strong> (Original: {output.primaryModelAttempted})</span>
+                            <span className="font-bold text-amber-200">Active: {output.actualModelId}</span>
+                          </div>
+                        )}
+
+                        {/* Real Local Telemetry */}
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
+                          <span>Observed latency: <strong className="text-white">{isSuccess ? `${output.latencyMs} ms` : 'N/A'}</strong></span>
+                          <span>Tokens: <strong className="text-white">{output.inputTokens ? `${output.inputTokens} / ${output.outputTokens}` : 'Not reported'}</strong></span>
+                        </div>
+                      </div>
+
+                      {/* Content Body */}
+                      {isSuccess ? (
+                        <div className="space-y-3 text-xs">
+                          {/* Classification & Testability */}
+                          <div className="flex items-center justify-between">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-cyan-300 border border-cyan-500/30">
+                              Cat: {output.classification}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              output.isTestable
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                            }`}>
+                              {output.isTestable ? '✓ Directly Testable' : '⚠ Non-Testable / Vague'}
+                            </span>
+                          </div>
+
+                          {/* Detected Vague Terms */}
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase block mb-1">Detected Ambiguous Terms:</span>
+                            {output.detectedVagueTerms && output.detectedVagueTerms.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {output.detectedVagueTerms.map((t, tIdx) => (
+                                  <span key={tIdx} className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                    "{t}"
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-emerald-400 font-bold">None detected</span>
+                            )}
+                          </div>
+
+                          {/* Detected Defect Codes (DEF-01 to DEF-16) */}
+                          {output.defectCodes && output.defectCodes.length > 0 && (
+                            <div>
+                              <span className="text-[10px] text-slate-400 uppercase block mb-1">Normalized Defect Codes:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {output.defectCodes.map((code, cIdx) => (
+                                  <span key={cIdx} className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                    {code}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Testability Assessment Note */}
+                          <p className="text-[11px] text-slate-300 font-sans leading-relaxed">
+                            {output.testabilityAssessment}
+                          </p>
+
+                          {/* Safe Rewrite */}
+                          <div className="p-3 rounded-xl bg-black/60 border border-cyan-500/30 space-y-1">
+                            <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block">
+                              Safe IEEE 830 Rewrite:
+                            </span>
+                            <p className="text-xs text-slate-100 font-bold font-mono leading-relaxed">
+                              "{output.safeRewrite}"
+                            </p>
+                          </div>
+
+                          {/* Optional Refinement */}
+                          {output.optionalRefinement && (
+                            <div className="p-2.5 rounded-lg bg-purple-950/30 border border-purple-500/30 text-[10px] text-purple-200">
+                              <span className="font-bold text-purple-400 block mb-0.5">⚡ AI Suggested Value [Optional Target]:</span>
+                              <p className="font-sans">{output.optionalRefinement}</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-2 text-xs">
+                          <p className="text-amber-300 font-semibold">{output.errorMessage || 'Provider unavailable.'}</p>
+                          {isNotConfigured && (
+                            <button
+                              onClick={() => setIsAISettingsOpen(true)}
+                              className="px-3 py-1.5 rounded-lg bg-violet-500/20 text-violet-300 border border-violet-500/40 text-xs font-bold hover:bg-violet-500/30 transition cursor-pointer"
+                            >
+                              Add API Key
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-2">
+                        {output.rawOutput && (
+                          <button
+                            onClick={() => setRawOutputInspection(output)}
+                            className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] transition cursor-pointer flex items-center gap-1"
+                            title="Inspect raw JSON output from model"
+                          >
+                            <Code2 className="h-3 w-3" />
+                            <span>Raw JSON</span>
+                          </button>
+                        )}
+
+                        {isSuccess && output.safeRewrite && (
+                          <button
+                            onClick={() => handleAdoptRewriteForRefinement(
+                              requirements[comparisonReqIndex]?.id,
+                              output.safeRewrite,
+                              output.optionalRefinement
+                            )}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition cursor-pointer ml-auto flex items-center gap-1"
+                          >
+                            <Check className="h-3 w-3" />
+                            <span>Use for Refinement</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Factual Agreement Analysis Panel */}
+              {agreementAnalysis && (
+                <div className="glass-card p-6 rounded-2xl border border-white/10 space-y-4 font-mono">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <Scale className="h-5 w-5 text-cyan-400" />
+                      <span>Cross-Model Factual Agreement Analysis</span>
+                    </h3>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
+                      agreementAnalysis.overallConsensusLevel === 'Insufficient Models'
+                        ? 'bg-slate-500/20 text-slate-300 border-white/15'
+                        : agreementAnalysis.overallConsensusLevel === 'Strong Agreement'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : agreementAnalysis.overallConsensusLevel === 'Moderate Consensus'
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                            : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                    }`}>
+                      {agreementAnalysis.overallConsensusLevel === 'Insufficient Models'
+                        ? 'Consensus: Insufficient Models (Min 2 required)'
+                        : `Consensus: ${agreementAnalysis.overallConsensusLevel}`}
+                    </span>
                   </div>
-                  <p className="text-cyan-100 leading-relaxed font-bold">
-                    "{AIEngine.generateContextualIEEERewrite(requirements[comparisonReqIndex]?.description || '', currentProject.domain)}"
-                  </p>
-                  <p className="text-[10px] text-slate-400 pt-1">Focus: Explicit sub-second SLA &amp; testability bounds.</p>
+
+                  {agreementAnalysis.totalEvaluated < 2 ? (
+                    <div className="p-4 rounded-xl bg-black/40 border border-white/5 text-center text-xs text-slate-400 font-sans">
+                      <p>At least 2 configured providers must be executed to calculate multi-model consensus metrics.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+                      {/* Classification Consensus */}
+                      <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-2">
+                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Classification Consensus</span>
+                        <p className="text-base font-bold text-cyan-300">
+                          {agreementAnalysis.classificationConsensus.percentage}% Agree on "{agreementAnalysis.classificationConsensus.category}"
+                        </p>
+                        <span className="text-[10px] text-slate-400 block">
+                          Consensus Level: <strong className="text-white">{agreementAnalysis.classificationConsensus.agreementLevel}</strong>
+                        </span>
+                      </div>
+
+                      {/* Testability Consensus */}
+                      <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-2">
+                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Testability Consensus</span>
+                        <p className={`text-base font-bold ${
+                          agreementAnalysis.testabilityConsensus.isTestable ? 'text-emerald-400' : 'text-rose-400'
+                        }`}>
+                          {agreementAnalysis.testabilityConsensus.percentage}% Agree: {agreementAnalysis.testabilityConsensus.isTestable ? 'Testable' : 'Non-Testable'}
+                        </p>
+                        <span className="text-[10px] text-slate-400 block">
+                          Evaluated across {agreementAnalysis.totalEvaluated} live inference engines.
+                        </span>
+                      </div>
+
+                      {/* Identified Vague Terms Consensus */}
+                      <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-2">
+                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Shared Ambiguity Detections</span>
+                        {agreementAnalysis.vagueTermsIdentified.length > 0 ? (
+                          <div className="space-y-1">
+                            {agreementAnalysis.vagueTermsIdentified.map((item, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-[11px]">
+                                <span className="font-bold text-rose-300">"{item.term}"</span>
+                                <span className="text-[10px] text-slate-400 font-sans">
+                                  {item.modelsAgreeing.length} model(s)
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-slate-400 text-[11px]">No consensus on vague terms.</p>
+                        )}
+                      </div>
+
+                      {/* Defect Code Agreement (DEF-01 to DEF-16) */}
+                      <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 text-[10px] uppercase font-bold block">Defect Code Agreement</span>
+                          <span className="text-amber-400 font-bold text-[10px]">{agreementAnalysis.defectAgreementRate ?? 100}% Shared</span>
+                        </div>
+                        {agreementAnalysis.sharedDefectCodes && agreementAnalysis.sharedDefectCodes.length > 0 ? (
+                          <div className="space-y-1">
+                            {agreementAnalysis.sharedDefectCodes.map((item, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-[11px]">
+                                <span className="font-bold text-amber-300">{item.code} <span className="font-normal text-slate-400">({item.name})</span></span>
+                                <span className="text-[10px] text-slate-400 font-sans">{item.modelsAgreeing.length} models</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-slate-400 text-[11px]">No shared defect codes across models.</p>
+                        )}
+                        {agreementAnalysis.modelSpecificDefectCodes && agreementAnalysis.modelSpecificDefectCodes.length > 0 && (
+                          <div className="pt-2 border-t border-white/5">
+                            <span className="text-[9px] text-slate-500 uppercase block mb-1">Model-Specific Defects:</span>
+                            <div className="flex flex-wrap gap-1">
+                              {agreementAnalysis.modelSpecificDefectCodes.map((item, idx) => (
+                                <span key={idx} className="px-1.5 py-0.2 rounded text-[9px] bg-slate-800 text-slate-300 border border-white/10" title={`Flagged only by ${item.model}`}>
+                                  {item.code} ({item.model})
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Rewrite Alignment (Transparent Token Jaccard Similarity) */}
+                      <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-2">
+                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Rewrite Alignment</span>
+                        <p className="text-base font-bold text-cyan-300">
+                          {agreementAnalysis.rewriteAlignmentScore}% Token Overlap
+                        </p>
+                        <span className="text-[10px] text-slate-400 block font-sans leading-tight">
+                          Lexical Jaccard similarity comparing generated IEEE safe rewrites across models.
+                        </span>
+                      </div>
+
+                      {/* Specification Elements Presence */}
+                      <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-2">
+                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Spec Elements Presence</span>
+                        <div className="space-y-1.5 text-xs pt-0.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-300">Safe IEEE Rewrites:</span>
+                            <strong className="text-emerald-400">{agreementAnalysis.safeRewritePresentCount || 0} / {agreementAnalysis.totalEvaluated}</strong>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-300">Acceptance Criteria:</span>
+                            <strong className="text-cyan-400">{agreementAnalysis.acceptanceCriteriaPresentCount || 0} / {agreementAnalysis.totalEvaluated}</strong>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-slate-500 block font-sans pt-1">
+                          Verified presence of structured specification components.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-[10px] text-slate-500 font-sans pt-1">
+                    * Metrics and consensus levels are computed factually from executed model responses. Zero arbitrary scores or benchmarks are fabricated.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Raw JSON Inspection Modal */}
+          {rawOutputInspection && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+              <div className="glass-card p-6 rounded-2xl border border-white/20 max-w-2xl w-full max-h-[80vh] flex flex-col space-y-4 font-mono shadow-2xl">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex items-center space-x-2">
+                    <Code2 className="h-4 w-4 text-cyan-400" />
+                    <span className="font-bold text-white text-sm">Raw Model Output: {rawOutputInspection.providerName}</span>
+                  </div>
+                  <button
+                    onClick={() => setRawOutputInspection(null)}
+                    className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white transition cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
 
-                <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-400/40 space-y-2 shadow-neon-emerald">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-emerald-300">GPT-4o Enterprise</span>
-                    <span className="text-[9px] text-emerald-400">98.1% Precision</span>
-                  </div>
-                  <p className="text-emerald-100 leading-relaxed font-bold">
-                    "The core {currentProject.domain.toLowerCase()} subsystem shall {AIEngine.generateContextualIEEERewrite(requirements[comparisonReqIndex]?.description || '', currentProject.domain).replace(/^the (system|.*?) shall /i, '')}"
-                  </p>
-                  <p className="text-[10px] text-slate-400 pt-1">Focus: Subsystem modularity &amp; API decoupling.</p>
+                <div className="overflow-y-auto bg-black/80 p-4 rounded-xl border border-white/10 text-xs text-slate-200">
+                  <pre className="whitespace-pre-wrap leading-relaxed font-mono">
+                    {rawOutputInspection.rawOutput || JSON.stringify(rawOutputInspection, null, 2)}
+                  </pre>
                 </div>
 
-                <div className="p-4 rounded-xl bg-purple-950/30 border border-purple-400/40 space-y-2 shadow-neon-purple">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-purple-300">DeepSeek R1 Core</span>
-                    <span className="text-[9px] text-emerald-400">98.6% Precision</span>
-                  </div>
-                  <p className="text-purple-100 leading-relaxed font-bold">
-                    "{AIEngine.generateContextualIEEERewrite(requirements[comparisonReqIndex]?.description || '', currentProject.domain)} [Verified: p99 latency &lt;= 1.2s; zero race conditions]."
-                  </p>
-                  <p className="text-[10px] text-slate-400 pt-1">Focus: Formal mathematical verification &amp; race guards.</p>
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={() => setRawOutputInspection(null)}
+                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition cursor-pointer"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
             </div>

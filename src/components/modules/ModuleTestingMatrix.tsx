@@ -18,6 +18,9 @@ export const ModuleTestingMatrix: React.FC = () => {
   if (!currentProject) return null;
 
   const matrixRows = AIEngine.generateTestingMatrix(currentProject.requirements, currentProject.testCases);
+  const overallCoverage = matrixRows.length > 0 
+    ? Math.round(matrixRows.reduce((acc, r) => acc + r.overallCoverage, 0) / matrixRows.length)
+    : 0;
 
   return (
     <div className="space-y-8">
@@ -37,7 +40,7 @@ export const ModuleTestingMatrix: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-right">
             <span className="text-[10px] font-mono text-slate-400 block">Overall Test Coverage</span>
-            <span className="text-2xl font-black font-mono text-emerald-400">88%</span>
+            <span className="text-2xl font-black font-mono text-emerald-400">{overallCoverage}%</span>
           </div>
         </div>
       </div>
@@ -58,7 +61,14 @@ export const ModuleTestingMatrix: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {matrixRows.map((row) => (
+              {matrixRows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-slate-400 font-sans">
+                    No requirements available. Upload or enter requirements to view the testing matrix.
+                  </td>
+                </tr>
+              ) : (
+                matrixRows.map((row) => (
                 <tr key={row.reqId} className="hover:bg-white/5 transition duration-150">
                   <td className="py-4 pr-4">
                     <span className="text-cyan-400 font-bold mr-2">{row.reqId}</span>
@@ -117,7 +127,8 @@ export const ModuleTestingMatrix: React.FC = () => {
                     </span>
                   </td>
                 </tr>
-              ))}
+              ))
+            )}
             </tbody>
           </table>
         </div>

@@ -90,7 +90,7 @@ export class ExportService {
           doc.addPage();
           y = 20;
         }
-        const text = `• [${req.id}] ${req.improvedText || req.description}`;
+        const text = `• [${req.id}] ${req.approvedText || req.improvedText || req.description}`;
         const splitText = doc.splitTextToSize(text, 175);
         doc.text(splitText, margin, y);
         y += splitText.length * 5 + 3;
@@ -113,7 +113,7 @@ export class ExportService {
     const nonFuncReqs = project.requirements.filter(r => r.category !== 'Functional');
     nonFuncReqs.forEach(req => {
       if (y > 270) { doc.addPage(); y = 20; }
-      const text = `• [${req.id}] (${req.category}) ${req.improvedText || req.description}`;
+      const text = `• [${req.id}] (${req.category}) ${req.approvedText || req.improvedText || req.description}`;
       const splitText = doc.splitTextToSize(text, 175);
       doc.text(splitText, margin, y);
       y += splitText.length * 5 + 3;
@@ -149,14 +149,14 @@ export class ExportService {
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: `Specification Standard: `, bold: true }),
-              new TextRun({ text: `IEEE Std 830-1998 / 29148-2018` }),
+              new TextRun({ text: `Standard: `, bold: true }),
+              new TextRun({ text: `IEEE Std 830-1998 / ISO/IEC/IEEE 29148-2018` }),
             ],
           }),
           new Paragraph({ text: '' }), // Spacer
 
           new Paragraph({
-            text: `1. Introduction & Project Description`,
+            text: `1. Introduction & Scope`,
             heading: HeadingLevel.HEADING_1,
           }),
           new Paragraph({
@@ -173,7 +173,7 @@ export class ExportService {
               children: [
                 new TextRun({ text: `[${req.id}] `, bold: true, color: '0072FF' }),
                 new TextRun({ text: `(${req.category}) `, italics: true }),
-                new TextRun({ text: req.improvedText || req.description }),
+                new TextRun({ text: req.approvedText || req.improvedText || req.description }),
               ]
             })
           ),
@@ -231,8 +231,9 @@ ${project.description || 'System specification covers all core software sub-modu
 ### 1.3 Definitions & Acronyms
 - **SRS**: Software Requirement Specification
 - **IEEE**: Institute of Electrical and Electronics Engineers
+- **ISO/IEC/IEEE 29148**: International Standard for Requirements Engineering
 - **RTM**: Requirement Traceability Matrix
-- **PNR**: Passenger Name Record (if applicable)
+- **NFR**: Non-Functional Requirement
 
 ---
 
@@ -240,15 +241,17 @@ ${project.description || 'System specification covers all core software sub-modu
 
 ### 2.1 Functional Requirements
 ${project.requirements.filter(r => r.category === 'Functional').map(r => `#### [${r.id}] ${r.title}
-- **Category**: ${r.category} | **Priority**: ${r.priority}
-- **Specification**: ${r.improvedText || r.description}
+- **Category**: ${r.category} | **Priority**: ${r.priority} | **Status**: ${r.status || 'NEEDS_REVIEW'}
+- **Specification**: ${r.approvedText || r.improvedText || r.description}
+- **Traceability Root (Raw)**: ${r.rawSource || r.description}
 ${r.issues.length > 0 ? `- **Quality Audit Notes**: ${r.issues.map(i => i.problem).join('; ')}` : ''}
 `).join('\n')}
 
 ### 2.2 Non-Functional Requirements
 ${project.requirements.filter(r => r.category !== 'Functional').map(r => `#### [${r.id}] ${r.title}
-- **Category**: ${r.category} | **Priority**: ${r.priority}
-- **Specification**: ${r.improvedText || r.description}
+- **Category**: ${r.category} | **Priority**: ${r.priority} | **Status**: ${r.status || 'NEEDS_REVIEW'}
+- **Specification**: ${r.approvedText || r.improvedText || r.description}
+- **Traceability Root (Raw)**: ${r.rawSource || r.description}
 `).join('\n')}
 
 ---

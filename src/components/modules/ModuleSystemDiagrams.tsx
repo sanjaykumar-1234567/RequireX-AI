@@ -49,6 +49,7 @@ import {
   UploadCloud
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
+import { getActorForRequirement } from '../../services/aiEngine';
 
 type DiagramTab = 'lifecycle' | 'use-cases' | 'sequence' | 'activity-workflow' | 'class-er' | 'component-deployment' | 'draw-3d-studio';
 type StudioDiagramMode = 'topology' | 'use-case' | 'class-er' | 'state-machine' | 'sequence';
@@ -107,7 +108,13 @@ export const ModuleSystemDiagrams: React.FC = () => {
   const [stateStep, setStateStep] = useState<number>(2);
   
   // Domain Use Case Selection State
-  const [selectedDomain, setSelectedDomain] = useState<string>(currentProject?.domain || 'Railway Reservation');
+  const [selectedDomain, setSelectedDomain] = useState<string>(currentProject?.domain || 'General');
+
+  React.useEffect(() => {
+    if (currentProject?.domain) {
+      setSelectedDomain(currentProject.domain);
+    }
+  }, [currentProject?.domain]);
 
   // Sequence Simulator Step State
   const [seqStep, setSeqStep] = useState<number>(0);
@@ -180,7 +187,31 @@ export const ModuleSystemDiagrams: React.FC = () => {
     { id: 'Online Quiz Platform', name: 'Online Quiz & Assessment', icon: '🎓', actor: 'Candidate / Exam Instructor', cases: ['Auto-Submit Timer Exam', 'Randomized Question Bank', 'Proctoring Tab-Switch Alert', 'Instant Scorecard Analytics', 'SHA-256 Digital Certificate'] }
   ];
 
-  const currentDomainData = domainsList.find(d => d.id === selectedDomain) || domainsList[0];
+  const currentDomainData = (() => {
+    const predefined = domainsList.find(d => d.id === selectedDomain);
+    if (predefined) return predefined;
+
+    // Dynamically synthesize target domain architecture from active project
+    const reqs = currentProject?.requirements || [];
+    const actor = reqs.length > 0 ? getActorForRequirement(reqs[0]) : `${selectedDomain} Operator`;
+    const cases = reqs.length > 0 
+      ? reqs.slice(0, 5).map(r => r.title)
+      : [
+          `Register & Ingest ${selectedDomain} Data`,
+          `Validate ${selectedDomain} State Transitions`,
+          `Process Real-Time ${selectedDomain} Events`,
+          `Enforce SLA & Latency Boundaries`,
+          `Generate Verification & Audit Telemetry`
+        ];
+
+    return {
+      id: selectedDomain,
+      name: currentProject?.name || `${selectedDomain} System`,
+      icon: '✨',
+      actor,
+      cases
+    };
+  })();
 
   const stateMachineSteps = [
     { id: 'Raw', label: '1. Raw Input', desc: 'Informal user requirement string entered or uploaded via CSV/DOCX/PDF', color: 'border-slate-500 bg-slate-900 text-slate-300' },
@@ -271,19 +302,25 @@ export const ModuleSystemDiagrams: React.FC = () => {
   const loadPresetTemplate = (preset: 'tatkal' | 'microservices' | 'hipaa' | 'usecase' | 'classer') => {
     if (preset === 'tatkal') {
       setStudioMode('topology');
+      const isRailway = currentProject?.domain === 'Railway Reservation';
+      const actorName = isRailway ? 'IRCTC Web Portal' : (currentDomainData.actor || `${currentProject?.domain || 'System'} Client`);
+      const serviceName = isRailway ? 'Tatkal Booking Worker' : `${currentProject?.domain || 'Core'} Engine`;
+      const dbName = isRailway ? 'PostgreSQL DB Cluster' : `${currentProject?.domain || 'System'} Database`;
+      const boundaryName = isRailway ? 'IRCTC Tatkal Core Engine' : `${currentProject?.domain || 'System'} Architecture Boundary`;
+
       setCustomNodes([
-        { id: 'N1', title: 'IRCTC Web Portal', type: 'Actor', color: 'border-amber-400 bg-amber-950/60 text-amber-300 shadow-neon-amber', x: 10, y: 35, z: 20, detail: '50,000 Tatkal concurrent active users.', tag: 'Primary Actor' },
-        { id: 'N2', title: 'Redis Cache Layer', type: 'Microservice', color: 'border-violet-400 bg-violet-950/60 text-violet-300 shadow-neon-violet', x: 35, y: 20, z: 40, detail: 'Sub-10ms seat matrix lock engine.', tag: 'Redis Sub-10ms' },
-        { id: 'N3', title: 'Tatkal Booking Worker', type: 'AI Engine', color: 'border-cyan-400 bg-cyan-950/60 text-cyan-300 shadow-neon-cyan', x: 60, y: 35, z: 55, detail: 'SLA response latency <= 1.2 seconds.', tag: 'SLA <= 1.2s' },
-        { id: 'N4', title: 'PostgreSQL DB Cluster', type: 'Database', color: 'border-emerald-400 bg-emerald-950/60 text-emerald-300 shadow-neon-emerald', x: 85, y: 35, z: 30, detail: 'ACID ticket ledger sync.', tag: 'ACID Ledger' }
+        { id: 'N1', title: actorName, type: 'Actor', color: 'border-amber-400 bg-amber-950/60 text-amber-300 shadow-neon-amber', x: 10, y: 35, z: 20, detail: 'Primary user interaction interface.', tag: 'Primary Actor' },
+        { id: 'N2', title: 'Redis Cache Layer', type: 'Microservice', color: 'border-violet-400 bg-violet-950/60 text-violet-300 shadow-neon-violet', x: 35, y: 20, z: 40, detail: 'Sub-10ms state lock engine.', tag: 'Sub-10ms Cache' },
+        { id: 'N3', title: serviceName, type: 'AI Engine', color: 'border-cyan-400 bg-cyan-950/60 text-cyan-300 shadow-neon-cyan', x: 60, y: 35, z: 55, detail: 'SLA response latency <= 1.2 seconds.', tag: 'SLA <= 1.2s' },
+        { id: 'N4', title: dbName, type: 'Database', color: 'border-emerald-400 bg-emerald-950/60 text-emerald-300 shadow-neon-emerald', x: 85, y: 35, z: 30, detail: 'ACID transaction ledger persistence.', tag: 'ACID Ledger' }
       ]);
       setCustomLinks([
-        { id: 'L1', from: 'N1', to: 'N2', label: 'Seat Inquiry', color: 'cyan', style: 'laser-pulse' },
-        { id: 'L2', from: 'N2', to: 'N3', label: 'Lock Ticket Slot', color: 'violet', style: 'laser-pulse' },
+        { id: 'L1', from: 'N1', to: 'N2', label: 'Query State', color: 'cyan', style: 'laser-pulse' },
+        { id: 'L2', from: 'N2', to: 'N3', label: 'Lock Slot & Process', color: 'violet', style: 'laser-pulse' },
         { id: 'L3', from: 'N3', to: 'N4', label: 'Commit Transaction', color: 'emerald', style: 'solid' }
       ]);
       setCustomBoundaries([
-        { id: 'B1', name: 'IRCTC Tatkal Core Engine', color: 'border-cyan-500/40 bg-cyan-950/20', x: 28, y: 10, width: 68, height: 75 }
+        { id: 'B1', name: boundaryName, color: 'border-cyan-500/40 bg-cyan-950/20', x: 28, y: 10, width: 68, height: 75 }
       ]);
     } else if (preset === 'microservices') {
       setStudioMode('topology');
@@ -699,6 +736,18 @@ export const ModuleSystemDiagrams: React.FC = () => {
 
               {/* Domain Selector Pills */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                {currentProject && !domainsList.some(d => d.id === currentProject.domain) && (
+                  <button
+                    onClick={() => setSelectedDomain(currentProject.domain)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer ${
+                      selectedDomain === currentProject.domain
+                        ? 'bg-emerald-500 text-black shadow-neon-emerald'
+                        : 'bg-surface hover:bg-surface-hover text-slate-300 border border-white/10'
+                    }`}
+                  >
+                    <span>✨ {currentProject.domain} (Active)</span>
+                  </button>
+                )}
                 {domainsList.map(d => (
                   <button
                     key={d.id}
@@ -1116,7 +1165,7 @@ export const ModuleSystemDiagrams: React.FC = () => {
               <div className="flex items-center space-x-2">
                 <span className="text-slate-400 font-bold">1-Click Presets:</span>
                 <button onClick={() => loadPresetTemplate('tatkal')} className="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold hover:bg-amber-500/30 cursor-pointer">
-                  🚆 Tatkal Pipeline
+                  {currentProject?.domain === 'Railway Reservation' ? '🚆 Tatkal Pipeline' : `⚡ ${currentProject?.domain || 'Domain'} Architecture`}
                 </button>
                 <button onClick={() => loadPresetTemplate('microservices')} className="px-2.5 py-1 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-bold hover:bg-cyan-500/30 cursor-pointer">
                   🌐 Microservices Mesh

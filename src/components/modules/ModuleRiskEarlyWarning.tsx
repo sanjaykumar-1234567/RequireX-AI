@@ -17,46 +17,36 @@ export const ModuleRiskEarlyWarning: React.FC = () => {
 
   if (!currentProject) return null;
 
-  const alerts = [
-    {
-      reqId: 'REQ-01',
-      title: 'Fast ticket booking during peak Tatkal hours',
-      severity: 'HIGH ALERT',
-      riskScore: '9.2 / 10',
-      flaws: [
-        'No measurable millisecond response time target',
-        'Undefined peak concurrent user workload threshold',
-        'Not objectively verifiable by automated QA stress tests'
-      ],
-      currentRaw: '"The website should be fast when passengers try to book Tatkal tickets in the morning."',
-      suggestedIEEE: 'The system shall process ticket reservation transactions within 1.2 seconds under a peak concurrency load of 50,000 active users.'
-    },
-    {
-      reqId: 'REQ-04',
-      title: 'Payment Gateway Failover & Webhook Sync',
-      severity: 'MEDIUM ALERT',
-      riskScore: '7.4 / 10',
-      flaws: [
-        'Lacks explicitly stated payment gateway timeout duration',
-        'Missing webhook retry queue backoff parameters',
-        'Unbounded refund processing windows'
-      ],
-      currentRaw: '"The system needs to process refunds automatically when bank payments fail."',
-      suggestedIEEE: 'The system shall interface with multi-bank payment gateways, initiate automatic failover after 30 seconds of inactivity, and dispatch refunds within 24 hours.'
-    },
-    {
-      reqId: 'REQ-06',
-      title: 'Biometric Station Gate & E-Ticket Scanner',
-      severity: 'MEDIUM ALERT',
-      riskScore: '6.8 / 10',
-      flaws: [
-        'Undefined QR code scanner latency threshold',
-        'Missing offline turnstile fallback mode'
-      ],
-      currentRaw: '"Turnstiles should scan passenger tickets quickly."',
-      suggestedIEEE: 'The system shall validate QR-coded e-tickets at station entry turnstiles within 300 milliseconds.'
-    }
-  ];
+  const alerts = currentProject.requirements
+    .filter(req => req.issues.length > 0 || req.priority === 'Critical' || req.priority === 'High')
+    .slice(0, 6)
+    .map(req => {
+      const hasCritical = req.issues.some(i => i.severity === 'Critical') || req.priority === 'Critical';
+      const severity = hasCritical ? 'HIGH ALERT' : 'MEDIUM ALERT';
+      const riskScore = hasCritical 
+        ? `${(8.5 + (req.issues.length % 15) * 0.1).toFixed(1)} / 10`
+        : `${(6.5 + (req.issues.length % 15) * 0.1).toFixed(1)} / 10`;
+
+      const flaws = req.issues.length > 0 
+        ? req.issues.map(i => i.problem || i.reason)
+        : [
+            'Missing quantified operational acceptance threshold',
+            'Undefined failure recovery & edge-case behavior',
+            'Requires objective automated QA stress test verification'
+          ];
+
+      const suggestedIEEE = req.improvedText || `The system shall execute ${req.title.toLowerCase()} with fully quantified operational bounds, verified exception handling, and automated test coverage.`;
+
+      return {
+        reqId: req.id,
+        title: req.title,
+        severity,
+        riskScore,
+        flaws: flaws.slice(0, 3),
+        currentRaw: `"${req.description}"`,
+        suggestedIEEE
+      };
+    });
 
   const handleFix = (reqId: string) => {
     setFixedReqs(prev => [...prev, reqId]);
@@ -88,7 +78,20 @@ export const ModuleRiskEarlyWarning: React.FC = () => {
 
       {/* Early Warning Alert Cards Grid */}
       <div className="space-y-6">
-        {alerts.map((alert) => {
+        {alerts.length === 0 ? (
+          <div className="glass-card p-12 rounded-2xl border border-white/10 text-center space-y-4">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto text-emerald-400">
+              <CheckCircle2 className="h-6 w-6" />
+            </div>
+            <h2 className="text-xl font-bold text-white">No High-Risk Early Warnings Detected</h2>
+            <p className="text-slate-400 text-sm max-w-md mx-auto">
+              {!currentProject.requirements || currentProject.requirements.length === 0
+                ? 'No requirements available. Upload or enter requirements to run the early risk warning radar.'
+                : 'All project requirements meet baseline stability and IEEE criteria without critical ambiguities or high risk.'}
+            </p>
+          </div>
+        ) : (
+          alerts.map((alert) => {
           const isFixed = fixedReqs.includes(alert.reqId);
 
           return (
@@ -165,7 +168,8 @@ export const ModuleRiskEarlyWarning: React.FC = () => {
               </div>
             </div>
           );
-        })}
+        })
+      )}
       </div>
     </div>
   );

@@ -2,7 +2,6 @@ import React from 'react';
 import { 
   Boxes, 
   Plus, 
-  Search, 
   Sparkles, 
   History, 
   UserCheck, 
@@ -20,7 +19,6 @@ export const Navbar: React.FC<{ onLandingClick: () => void; isLanding: boolean }
     selectProject, 
     setIsCreateProjectOpen, 
     setIsAIChatOpen, 
-    setIsGlobalSearchOpen,
     setIsHistoryOpen,
     setIsAISettingsOpen,
     userSession,
@@ -89,16 +87,6 @@ export const Navbar: React.FC<{ onLandingClick: () => void; isLanding: boolean }
         <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
           {!isLanding && (
             <>
-              {/* Global Search Button */}
-              <button
-                onClick={() => setIsGlobalSearchOpen(true)}
-                className="hidden lg:flex items-center space-x-3 bg-surface/90 hover:bg-surface text-slate-400 hover:text-slate-200 text-xs px-4 py-2 rounded-xl border border-white/10 hover:border-blue-500/40 transition shadow-sm cursor-pointer"
-              >
-                <Search className="h-4 w-4 text-blue-400" />
-                <span className="font-medium">Search reqs, stories, tests...</span>
-                <kbd className="bg-black/50 text-[10px] font-mono text-amber-300 px-2 py-0.5 rounded border border-white/10">Ctrl+K</kbd>
-              </button>
-
               {/* Version History Drawer Trigger */}
               <button
                 onClick={() => setIsHistoryOpen(true)}

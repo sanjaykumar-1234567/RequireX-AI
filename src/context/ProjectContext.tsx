@@ -11,7 +11,9 @@ import {
   VersionSnapshot,
   RequirementCategory,
   PriorityLevel,
-  QualityIssue
+  QualityIssue,
+  RequirementLifecycleStatus,
+  ReviewDecision
 } from '../types';
 import { AIEngine } from '../services/aiEngine';
 
@@ -81,7 +83,9 @@ interface ProjectContextType {
   updateRequirement: (updated: Requirement) => void;
   deleteRequirement: (id: string) => void;
   acceptImprovedRequirement: (id: string) => void;
-  applyRequirementRewrite: (id: string, newText: string) => void;
+  editAndApproveRequirement: (id: string, newText: string) => void;
+  rejectRequirementRewrite: (id: string, reason?: string) => void;
+  applyRequirementRewrite: (id: string, newText: string, decision?: 'Pending' | 'Approved' | 'Rejected' | 'Modified') => void;
   addRecommendedRequirements: (recs: RecommendedRequirement[]) => void;
   regenerateArtifacts: () => void;
   createVersionSnapshot: (description: string) => void;
@@ -105,20 +109,32 @@ const createSampleProject = (
     issue?: QualityIssue 
   }>
 ): Project => {
-  const reqs: Requirement[] = reqTexts.map((r, i) => ({
-    id: `REQ-${String(i + 1).padStart(2, '0')}`,
-    title: r.title,
-    description: r.issue ? (r.rawText || r.desc) : r.desc,
-    category: r.category,
-    priority: r.priority,
-    status: r.issue ? 'Analyzed' : 'Approved',
-    issues: r.issue ? [r.issue] : [],
-    improvedText: r.improvedText || r.desc,
-    isImprovedAccepted: !r.issue, // Active defect if issue is present
-    domain,
-    version: 1,
-    createdAt: '2026-08-01'
-  }));
+  const reqs: Requirement[] = reqTexts.map((r, i) => {
+    const raw = r.rawText || r.desc;
+    const hasIssue = Boolean(r.issue);
+    const activeText = hasIssue ? raw : (r.improvedText || r.desc);
+    return {
+      id: `REQ-${String(i + 1).padStart(2, '0')}`,
+      title: r.title,
+      rawSource: raw,
+      originalRawText: raw,
+      description: activeText,
+      currentText: activeText,
+      suggestedText: r.improvedText || r.desc,
+      improvedText: r.improvedText || r.desc,
+      approvedText: hasIssue ? undefined : (r.improvedText || r.desc),
+      category: r.category,
+      priority: r.priority,
+      status: hasIssue ? 'NEEDS_REVIEW' : 'USER_APPROVED',
+      reviewDecision: hasIssue ? 'Pending' : 'Approved',
+      isSRSReady: !hasIssue,
+      issues: r.issue ? [r.issue] : [],
+      isImprovedAccepted: !hasIssue,
+      domain,
+      version: 1,
+      createdAt: '2026-08-01'
+    };
+  });
 
   const proj: Project = {
     id,
@@ -432,6 +448,106 @@ const isCleanRequirement = (r: Requirement): boolean => {
   return (validChars / r.description.length) >= 0.65;
 };
 
+/**
+ * Migration & Data Integrity Sanitizer for LocalStorage Projects
+ * - Removes old fabricated text (1.5 seconds under nominal production load)
+ * - Assigns persistent, strictly unique IDs (no duplicate REQ-01)
+ * - Preserves raw user source
+ * - Resets false approvals to NEEDS_REVIEW unless explicit approval provenance exists
+ */
+const migrateAndSanitizeProject = (p: Project): Project => {
+  const seenIds = new Set<string>();
+  let maxIdNum = 0;
+
+  // First pass: scan for maximum numerical suffix
+  for (const r of p.requirements || []) {
+    const match = r.id?.match(/^REQ-(\d+)$/i);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > maxIdNum) maxIdNum = num;
+    }
+  }
+
+  const cleanReqs = (p.requirements || []).filter(isCleanRequirement).map((r, idx) => {
+    // 1. Remove fabricated context from description / rawSource
+    let rawText = r.rawSource || r.originalRawText || r.description || '';
+    if (
+      rawText.includes('The school event planner processing service shall') ||
+      rawText.includes('nominal production load') ||
+      rawText.includes('1.5 seconds under')
+    ) {
+      rawText = rawText
+        .replace(/The school event planner processing service shall\s*/gi, '')
+        .replace(/,\s*with operations completing within 1\.5 seconds under nominal production load\.?/gi, '')
+        .trim();
+      if (!rawText.endsWith('.')) rawText += '.';
+    }
+
+    // 2. Ensure unique persistent ID
+    let finalId = r.id;
+    if (!finalId || seenIds.has(finalId)) {
+      maxIdNum++;
+      finalId = `REQ-${String(maxIdNum).padStart(2, '0')}`;
+    } else {
+      seenIds.add(finalId);
+    }
+
+    // 3. Re-run analysis for fresh issues & safe proposal
+    const analysis = AIEngine.analyze20Problems(rawText, [], p.domain, idx);
+
+    // 4. Determine legitimate approval state:
+    // Only requirements with valid approvedText and explicit approval decision are approved
+    const isExplicitlyApproved = 
+      (r.status === 'USER_APPROVED' || r.reviewDecision === 'Approved' || r.reviewDecision === 'Modified') &&
+      Boolean(r.approvedText) &&
+      analysis.issues.filter(i => i.severity === 'Critical').length === 0;
+
+    const status: RequirementLifecycleStatus = isExplicitlyApproved
+      ? 'USER_APPROVED'
+      : (analysis.issues.length > 0 ? 'NEEDS_REVIEW' : 'RAW');
+
+    const reviewDecision: ReviewDecision = isExplicitlyApproved
+      ? (r.reviewDecision || 'Approved')
+      : 'Pending';
+
+    const isSRSReady = isExplicitlyApproved;
+    const currentText = isExplicitlyApproved ? (r.approvedText || r.description) : rawText;
+
+    return {
+      ...r,
+      id: finalId,
+      rawSource: rawText,
+      originalRawText: rawText,
+      description: currentText,
+      currentText: currentText,
+      suggestedText: analysis.safeRewrite,
+      improvedText: analysis.safeRewrite,
+      approvedText: isExplicitlyApproved ? (r.approvedText || r.description) : undefined,
+      optionalRefinement: analysis.optionalRefinement,
+      category: analysis.category,
+      tags: analysis.tags,
+      priority: analysis.priority,
+      status,
+      reviewDecision,
+      isSRSReady,
+      issues: isExplicitlyApproved ? [] : analysis.issues,
+      domain: r.domain || p.domain,
+      version: r.version || 1,
+      createdAt: r.createdAt || new Date().toISOString().split('T')[0]
+    };
+  });
+
+  return {
+    ...p,
+    requirements: cleanReqs,
+    userStories: p.userStories?.length > 0 ? p.userStories : AIEngine.generateUserStories(cleanReqs),
+    useCases: p.useCases?.length > 0 ? p.useCases : AIEngine.generateUseCases(cleanReqs),
+    testCases: p.testCases?.length > 0 ? p.testCases : AIEngine.generateTestCases(cleanReqs),
+    risks: p.risks?.length > 0 ? p.risks : AIEngine.generateRisks(cleanReqs),
+    recommendedRequirements: AIEngine.getDomainRecommendations(p.domain, cleanReqs)
+  };
+};
+
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [projects, setProjects] = useState<Project[]>(() => {
     const saved = localStorage.getItem('requirex_projects_v5');
@@ -439,19 +555,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       try {
         const parsed: Project[] = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(p => {
-            const cleanReqs = p.requirements.filter(isCleanRequirement);
-            const baseSample = INITIAL_SAMPLE_PROJECTS.find(s => s.id === p.id);
-            const reqs = cleanReqs.length > 0 ? cleanReqs : (baseSample?.requirements || []);
-            return {
-              ...p,
-              requirements: reqs,
-              userStories: p.userStories.length > 0 ? p.userStories : AIEngine.generateUserStories(reqs),
-              useCases: p.useCases.length > 0 ? p.useCases : AIEngine.generateUseCases(reqs),
-              testCases: p.testCases.length > 0 ? p.testCases : AIEngine.generateTestCases(reqs),
-              risks: p.risks.length > 0 ? p.risks : AIEngine.generateRisks(reqs)
-            };
-          });
+          return parsed.map(migrateAndSanitizeProject);
         }
       } catch (e) { console.error(e); }
     }
@@ -499,7 +603,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const createNewProject = (name: string, domain: string, description: string) => {
-    const recommendations = AIEngine.getDomainRecommendations(domain);
+    const recommendations = AIEngine.getDomainRecommendations(domain, []);
     const newProj: Project = {
       id: `proj-${Math.random().toString(36).substring(2, 9)}`,
       name,
@@ -535,21 +639,75 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const addRequirementsToProject = (newReqs: Requirement[]) => {
     updateProjectState(proj => {
-      const combined = [...proj.requirements, ...newReqs];
+      // Collect existing IDs and find max numeric suffix
+      const existingIds = new Set<string>();
+      let maxIdNum = 0;
+      for (const r of proj.requirements) {
+        if (r.id) {
+          existingIds.add(r.id);
+          const match = r.id.match(/^REQ-(\d+)$/i);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxIdNum) maxIdNum = num;
+          }
+        }
+      }
+
+      // Assign strictly unique, non-colliding persistent IDs for all incoming requirements
+      const normalizedNewReqs = newReqs.map(r => {
+        let finalId = r.id;
+        if (!finalId || existingIds.has(finalId)) {
+          maxIdNum++;
+          finalId = `REQ-${String(maxIdNum).padStart(2, '0')}`;
+        } else {
+          const match = finalId.match(/^REQ-(\d+)$/i);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxIdNum) maxIdNum = num;
+          }
+        }
+        existingIds.add(finalId);
+
+        const raw = r.rawSource || r.originalRawText || r.description;
+        return {
+          ...r,
+          id: finalId,
+          rawSource: raw,
+          originalRawText: raw,
+          description: r.description || raw,
+          currentText: r.currentText || r.description || raw,
+          suggestedText: r.suggestedText || r.improvedText || '',
+          improvedText: r.suggestedText || r.improvedText || '',
+          status: r.status || (r.issues && r.issues.length > 0 ? 'NEEDS_REVIEW' : 'RAW'),
+          reviewDecision: r.reviewDecision || 'Pending',
+          isSRSReady: r.isSRSReady || false
+        };
+      });
+
+      const combined = [...proj.requirements, ...normalizedNewReqs];
       return {
         ...proj,
         requirements: combined,
         userStories: AIEngine.generateUserStories(combined),
         useCases: AIEngine.generateUseCases(combined),
         testCases: AIEngine.generateTestCases(combined),
-        risks: AIEngine.generateRisks(combined)
+        risks: AIEngine.generateRisks(combined),
+        recommendedRequirements: AIEngine.getDomainRecommendations(proj.domain, combined)
       };
     });
   };
 
   const updateRequirement = (updated: Requirement) => {
     updateProjectState(proj => {
-      const reqs = proj.requirements.map(r => r.id === updated.id ? updated : r);
+      const reqs = proj.requirements.map(r => {
+        if (r.id === updated.id) {
+          return {
+            ...updated,
+            rawSource: r.rawSource || updated.rawSource || updated.description
+          };
+        }
+        return r;
+      });
       return {
         ...proj,
         requirements: reqs,
@@ -573,18 +731,30 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   };
 
-  const applyRequirementRewrite = (id: string, newText: string) => {
+  const applyRequirementRewrite = (id: string, newText: string, decision: ReviewDecision = 'Approved') => {
     updateProjectState(proj => {
-      const reqs = proj.requirements.map(r => {
+      const reqs: Requirement[] = proj.requirements.map(r => {
         if (r.id === id) {
-          return {
+          const freshAudit = AIEngine.analyze20Problems(newText, [], proj.domain);
+          const hasCriticalDefects = freshAudit.issues.some(i => i.severity === 'Critical');
+          const isApproved = decision === 'Approved' || decision === 'Modified';
+
+          const updatedReq: Requirement = {
             ...r,
+            rawSource: r.rawSource || r.originalRawText || r.description,
+            originalRawText: r.rawSource || r.originalRawText || r.description,
             description: newText,
+            currentText: newText,
             improvedText: newText,
-            issues: [],
-            status: 'Approved' as const,
-            isImprovedAccepted: true
+            approvedText: isApproved && !hasCriticalDefects ? newText : undefined,
+            issues: freshAudit.issues,
+            status: (isApproved && !hasCriticalDefects ? 'USER_APPROVED' : 'NEEDS_REVIEW') as RequirementLifecycleStatus,
+            reviewDecision: (isApproved && !hasCriticalDefects ? decision : 'Pending') as ReviewDecision,
+            isImprovedAccepted: isApproved && !hasCriticalDefects,
+            isSRSReady: isApproved && !hasCriticalDefects,
+            reviewedAt: new Date().toISOString()
           };
+          return updatedReq;
         }
         return r;
       });
@@ -600,11 +770,139 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const acceptImprovedRequirement = (id: string) => {
-    const target = currentProject?.requirements.find(r => r.id === id);
-    const rewrite = target?.improvedText || (target ? AIEngine.generateContextualIEEERewrite(target.description, currentProject?.domain) : '');
-    if (rewrite) {
-      applyRequirementRewrite(id, rewrite);
-    }
+    updateProjectState(proj => {
+      const reqs = proj.requirements.map(r => {
+        if (r.id === id) {
+          const proposal = (r.suggestedText || r.improvedText || '').trim();
+          if (!proposal) return r;
+
+          // Re-run quality audit against the accepted proposal
+          const freshAudit = AIEngine.analyze20Problems(proposal, [], proj.domain);
+          const hasCriticalDefects = freshAudit.issues.some(i => i.severity === 'Critical');
+
+          if (hasCriticalDefects) {
+            return {
+              ...r,
+              description: proposal,
+              currentText: proposal,
+              issues: freshAudit.issues,
+              status: 'NEEDS_REVIEW' as const,
+              reviewDecision: 'Pending' as const,
+              isSRSReady: false,
+              reviewedAt: new Date().toISOString()
+            };
+          }
+
+          return {
+            ...r,
+            approvedText: proposal,
+            description: proposal,
+            currentText: proposal,
+            issues: freshAudit.issues,
+            status: 'USER_APPROVED' as const,
+            reviewDecision: 'Approved' as const,
+            isSRSReady: true,
+            isImprovedAccepted: true,
+            reviewedAt: new Date().toISOString()
+          };
+        }
+        return r;
+      });
+
+      return {
+        ...proj,
+        requirements: reqs,
+        userStories: AIEngine.generateUserStories(reqs),
+        useCases: AIEngine.generateUseCases(reqs),
+        testCases: AIEngine.generateTestCases(reqs)
+      };
+    });
+  };
+
+  const editAndApproveRequirement = (id: string, newText: string) => {
+    const cleaned = (newText || '').trim();
+    if (!cleaned) return;
+
+    updateProjectState(proj => {
+      const reqs = proj.requirements.map(r => {
+        if (r.id === id) {
+          // Re-run quality audit against the user-edited text
+          const freshAudit = AIEngine.analyze20Problems(cleaned, [], proj.domain);
+          const hasIssues = freshAudit.issues.length > 0;
+
+          if (hasIssues) {
+            // User edited the requirement but defects remain (e.g. left "quickly")
+            // System detects "quickly" again and keeps in NEEDS_REVIEW!
+            return {
+              ...r,
+              description: cleaned,
+              currentText: cleaned,
+              suggestedText: freshAudit.safeRewrite,
+              improvedText: freshAudit.safeRewrite,
+              approvedText: undefined,
+              issues: freshAudit.issues,
+              status: 'USER_EDITED' as const,
+              reviewDecision: 'Pending' as const,
+              isSRSReady: false,
+              reviewedAt: new Date().toISOString()
+            };
+          }
+
+          // Edited text is clean and satisfies IEEE specifications
+          return {
+            ...r,
+            approvedText: cleaned,
+            description: cleaned,
+            currentText: cleaned,
+            issues: [],
+            status: 'USER_APPROVED' as const,
+            reviewDecision: 'Modified' as const,
+            isSRSReady: true,
+            isImprovedAccepted: true,
+            reviewedAt: new Date().toISOString()
+          };
+        }
+        return r;
+      });
+
+      return {
+        ...proj,
+        requirements: reqs,
+        userStories: AIEngine.generateUserStories(reqs),
+        useCases: AIEngine.generateUseCases(reqs),
+        testCases: AIEngine.generateTestCases(reqs)
+      };
+    });
+  };
+
+  const rejectRequirementRewrite = (id: string, reason?: string) => {
+    updateProjectState(proj => {
+      const reqs = proj.requirements.map(r => {
+        if (r.id === id) {
+          const raw = r.rawSource || r.originalRawText || r.description;
+          const freshAudit = AIEngine.analyze20Problems(raw, [], proj.domain);
+          return {
+            ...r,
+            description: raw,
+            currentText: raw,
+            approvedText: undefined,
+            issues: freshAudit.issues,
+            status: 'REJECTED' as const,
+            reviewDecision: 'Rejected' as const,
+            rejectionReason: reason || 'User rejected proposed IEEE rewrite',
+            isImprovedAccepted: false,
+            isSRSReady: false,
+            reviewedAt: new Date().toISOString()
+          };
+        }
+        return r;
+      });
+
+      return {
+        ...proj,
+        requirements: reqs
+      };
+    });
   };
 
   const addRecommendedRequirements = (selectedRecs: RecommendedRequirement[]) => {
@@ -612,12 +910,17 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       id: `REQ-${String((currentProject?.requirements.length || 0) + i + 1).padStart(2, '0')}`,
       title: rec.title,
       description: rec.description,
+      rawSource: rec.description,
+      currentText: rec.description,
       category: rec.category,
       priority: 'High',
-      status: 'Approved',
+      status: 'NEEDS_REVIEW',
+      reviewDecision: 'Pending',
+      isSRSReady: false,
       issues: [],
       improvedText: rec.description,
-      isImprovedAccepted: true,
+      suggestedText: rec.description,
+      isImprovedAccepted: false,
       domain: rec.domain,
       version: 1,
       createdAt: new Date().toISOString().split('T')[0]
@@ -700,6 +1003,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateRequirement,
         deleteRequirement,
         acceptImprovedRequirement,
+        editAndApproveRequirement,
+        rejectRequirementRewrite,
         applyRequirementRewrite,
         addRecommendedRequirements,
         regenerateArtifacts,

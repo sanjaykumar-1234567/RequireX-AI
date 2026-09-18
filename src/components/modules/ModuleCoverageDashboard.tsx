@@ -27,39 +27,35 @@ export const ModuleCoverageDashboard: React.FC = () => {
   const reqs = currentProject.requirements;
   const stories = currentProject.userStories;
   const testCases = currentProject.testCases;
+  const useCases = currentProject.useCases || [];
 
-  // Build per-requirement QA coverage with realistic engineering distribution
-  const rows = reqs.map((r, i) => {
+  // Build per-requirement QA coverage dynamically based on linked test levels
+  const rows = reqs.map((r) => {
     const linkedStory = stories.find(s => s.requirementId === r.id);
     const linkedTests = testCases.filter(t => t.requirementId === r.id);
     
-    // Realistic test level variance per requirement
-    let countTests = linkedTests.length;
-    let percent = 100;
-    let gapWarning: string | null = null;
-    let missingLevels: string[] = [];
+    // Dynamic test level detection
+    const hasUnit = linkedTests.some(t => t.category === 'Positive' || t.category === 'Validation');
+    const hasIntegration = linkedTests.some(t => t.category === 'Boundary' || t.description.toLowerCase().includes('integration'));
+    const hasSystem = linkedTests.length > 0;
+    const hasSecurity = linkedTests.some(t => t.category === 'Security' || t.description.toLowerCase().includes('security') || t.description.toLowerCase().includes('auth') || t.description.toLowerCase().includes('permission'));
+    const hasLoad = linkedTests.some(t => t.category === 'Performance' || t.description.toLowerCase().includes('performance') || t.description.toLowerCase().includes('load') || t.description.toLowerCase().includes('concurrency'));
 
-    if (i === 1) {
-      // 75% Coverage - Missing Security Test Case
-      percent = 75;
-      countTests = Math.max(countTests, 3);
-      missingLevels = ['Security Vulnerability Test'];
-      gapWarning = 'Missing Security & Penetration test case scenario.';
-    } else if (i === 2) {
-      // 50% Coverage - Missing Performance & Boundary
-      percent = 50;
-      countTests = Math.max(countTests, 2);
-      missingLevels = ['Boundary Value Test', 'High-Load Concurrency Test'];
-      gapWarning = 'Missing boundary condition & load spike verification.';
-    } else if (i === 3 && reqs.length > 3) {
-      // 75% Coverage - Missing Negative Exception Test
-      percent = 75;
-      countTests = Math.max(countTests, 3);
-      missingLevels = ['Negative Exception Flow Test'];
-      gapWarning = 'Missing error fallback exception test.';
-    } else {
-      percent = 100;
-      countTests = Math.max(countTests, 4);
+    const coveredLevelsCount = [hasUnit, hasIntegration, hasSystem, hasSecurity, hasLoad].filter(Boolean).length;
+    const percent = linkedTests.length === 0 ? 0 : Math.round((coveredLevelsCount / 5) * 100);
+
+    const missingLevels: string[] = [];
+    if (!hasUnit) missingLevels.push('Unit Test');
+    if (!hasIntegration) missingLevels.push('Integration Test');
+    if (!hasSystem) missingLevels.push('System Flow Test');
+    if (!hasSecurity) missingLevels.push('Security & Auth Test');
+    if (!hasLoad) missingLevels.push('Load & Boundary Test');
+
+    let gapWarning: string | null = null;
+    if (linkedTests.length === 0) {
+      gapWarning = 'No test cases linked to this requirement.';
+    } else if (missingLevels.length > 0) {
+      gapWarning = `Missing ${missingLevels.slice(0, 2).join(' & ')} coverage.`;
     }
 
     return {
@@ -69,9 +65,14 @@ export const ModuleCoverageDashboard: React.FC = () => {
       category: r.category,
       priority: r.priority,
       percent,
-      testCount: countTests,
+      testCount: linkedTests.length,
       linkedStory,
       linkedTests,
+      hasUnit,
+      hasIntegration,
+      hasSystem,
+      hasSecurity,
+      hasLoad,
       missingLevels,
       gapWarning
     };
@@ -79,11 +80,19 @@ export const ModuleCoverageDashboard: React.FC = () => {
 
   const selectedRow = rows.find(r => r.id === selectedReqId) || null;
 
-  // Aggregate stats
+  // Aggregate stats calculated dynamically from actual project data
   const totalReqs = rows.length;
-  const fullyCovered = rows.filter(r => r.percent === 100).length;
-  const reqCoverage = Math.round((fullyCovered / Math.max(totalReqs, 1)) * 100);
-  const avgTestCoverage = Math.round(rows.reduce((acc, r) => acc + r.percent, 0) / Math.max(totalReqs, 1));
+  const verifiedReqs = reqs.filter(r => (r.status === 'Approved' || r.issues.length === 0) && testCases.some(t => t.requirementId === r.id)).length;
+  const reqCoverage = totalReqs > 0 ? Math.round((verifiedReqs / totalReqs) * 100) : 0;
+  const avgTestCoverage = totalReqs > 0 ? Math.round(rows.reduce((acc, r) => acc + r.percent, 0) / totalReqs) : 0;
+  
+  // Stakeholder Coverage: requirements with identified actors/stakeholders / total requirements
+  const stakeholderCoveredCount = reqs.filter(r => stories.some(s => s.requirementId === r.id && s.asA && s.asA.toLowerCase() !== 'system') || (r as any).sourceStakeholder).length;
+  const stakeholderCoverage = totalReqs > 0 ? Math.round((stakeholderCoveredCount / totalReqs) * 100) : 0;
+
+  // Traceability Matrix: requirements with downstream links / total requirements
+  const traceableCount = reqs.filter(r => stories.some(s => s.requirementId === r.id) || testCases.some(t => t.requirementId === r.id) || useCases.some(u => u.requirementId === r.id)).length;
+  const traceabilityCoverage = totalReqs > 0 ? Math.round((traceableCount / totalReqs) * 100) : 0;
 
   return (
     <div className="space-y-8">
@@ -105,10 +114,10 @@ export const ModuleCoverageDashboard: React.FC = () => {
       {/* 4 Major Coverage KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 font-mono">
         {[
-          { label: 'Requirement Verification', value: `${reqCoverage}%`, subtitle: `${fullyCovered}/${totalReqs} 100% Verified`, neon: 'neon-card-cyan', color: 'text-cyan-400' },
+          { label: 'Requirement Verification', value: `${reqCoverage}%`, subtitle: `${verifiedReqs}/${totalReqs} Verified Requirements`, neon: 'neon-card-cyan', color: 'text-cyan-400' },
           { label: 'QA Test Depth', value: `${avgTestCoverage}%`, subtitle: 'Multi-level test coverage score', neon: 'neon-card-emerald', color: 'text-emerald-400' },
-          { label: 'Stakeholder Coverage', value: '85%', subtitle: 'Key actors & user roles engaged', neon: 'neon-card-violet', color: 'text-violet-400' },
-          { label: 'Traceability Matrix', value: '100%', subtitle: 'Bi-directional RTM linkage', neon: 'neon-card-blue', color: 'text-blue-400' },
+          { label: 'Stakeholder Coverage', value: `${stakeholderCoverage}%`, subtitle: `${stakeholderCoveredCount}/${totalReqs} User roles engaged`, neon: 'neon-card-violet', color: 'text-violet-400' },
+          { label: 'Traceability Matrix', value: `${traceabilityCoverage}%`, subtitle: `${traceableCount}/${totalReqs} Bi-directional RTM linkage`, neon: 'neon-card-blue', color: 'text-blue-400' },
         ].map((kpi, idx) => (
           <div key={idx} className={`glass-card ${kpi.neon} p-6 rounded-2xl border border-white/10 space-y-2`}>
             <p className="text-[11px] font-bold text-slate-400 uppercase">{kpi.label}</p>
@@ -136,7 +145,12 @@ export const ModuleCoverageDashboard: React.FC = () => {
         </div>
 
         <div className="space-y-3">
-          {rows.map((row) => {
+          {rows.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 font-sans border border-white/10 rounded-xl bg-surface/30">
+              No requirements available. Upload or enter requirements to view coverage drilldown.
+            </div>
+          ) : (
+            rows.map((row) => {
             const isSelected = selectedReqId === row.id;
             return (
               <div key={row.id} className="space-y-2">
@@ -230,23 +244,15 @@ export const ModuleCoverageDashboard: React.FC = () => {
                       </span>
                       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
                         {[
-                          { level: 'Unit Test', status: 'Covered', color: 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10' },
-                          { level: 'Integration Test', status: 'Covered', color: 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10' },
-                          { level: 'System Flow', status: 'Covered', color: 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10' },
-                          { 
-                            level: 'Security & Auth', 
-                            status: row.missingLevels.includes('Security Vulnerability Test') ? 'Missing Gap' : 'Covered',
-                            color: row.missingLevels.includes('Security Vulnerability Test') ? 'text-amber-400 border-amber-500/40 bg-amber-500/10' : 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10' 
-                          },
-                          { 
-                            level: 'Load & Boundary', 
-                            status: row.missingLevels.includes('Boundary Value Test') ? 'Missing Gap' : 'Covered',
-                            color: row.missingLevels.includes('Boundary Value Test') ? 'text-rose-400 border-rose-500/40 bg-rose-500/10' : 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10' 
-                          }
+                          { level: 'Unit Test', covered: row.hasUnit },
+                          { level: 'Integration Test', covered: row.hasIntegration },
+                          { level: 'System Flow', covered: row.hasSystem },
+                          { level: 'Security & Auth', covered: row.hasSecurity },
+                          { level: 'Load & Boundary', covered: row.hasLoad }
                         ].map((lvl, idx) => (
-                          <div key={idx} className={`p-2.5 rounded-xl border ${lvl.color} text-center space-y-1`}>
+                          <div key={idx} className={`p-2.5 rounded-xl border ${lvl.covered ? 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10' : 'text-amber-400 border-amber-500/40 bg-amber-500/10'} text-center space-y-1`}>
                             <span className="text-[10px] text-slate-400 block">{lvl.level}</span>
-                            <strong className="text-xs block">{lvl.status}</strong>
+                            <strong className="text-xs block">{lvl.covered ? 'Covered' : 'Missing Gap'}</strong>
                           </div>
                         ))}
                       </div>
@@ -282,7 +288,8 @@ export const ModuleCoverageDashboard: React.FC = () => {
                 )}
               </div>
             );
-          })}
+          })
+        )}
         </div>
       </div>
     </div>

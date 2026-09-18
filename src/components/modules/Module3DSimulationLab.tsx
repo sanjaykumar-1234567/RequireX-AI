@@ -55,20 +55,20 @@ export const Module3DSimulationLab: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SimTab>('impact');
 
   // Multi-Domain Context
-  const domainName = currentProject?.domain || 'Railway Reservation';
+  const domainName = currentProject?.domain || 'System Core';
   const requirements = currentProject?.requirements || [];
   const selectedReq = requirements[0] || {
     id: 'REQ-01',
-    title: 'Fast ticket booking during peak Tatkal hours',
-    description: 'The website should be very fast and user-friendly during peak Tatkal booking hours.',
-    improvedText: 'The system shall process ticket reservation requests within 1.2 seconds under 50,000 concurrent active users.',
+    title: `${domainName} Core Functional Requirement`,
+    description: `The system shall support core operational flows for ${domainName}.`,
+    improvedText: `The system shall execute operations within 1.0 second response latency under normal and peak operating workloads.`,
     category: 'Functional',
-    priority: 'Critical'
+    priority: 'High'
   };
 
   // 1. Impact Simulator State
   const [selectedReqId, setSelectedReqId] = useState<string>(selectedReq.id);
-  const [impactSLA, setImpactSLA] = useState<string>('Response Latency <= 1.0s under 50,000 users');
+  const [impactSLA, setImpactSLA] = useState<string>('Response Latency <= 1.0s under target concurrent load');
   const [isSimulatingImpact, setIsSimulatingImpact] = useState<boolean>(false);
   const [impactStep, setImpactStep] = useState<number>(0);
 
@@ -76,16 +76,16 @@ export const Module3DSimulationLab: React.FC = () => {
   const [tiltAngle, setTiltAngle] = useState<number>(50);
   const [rotationAngle, setRotationAngle] = useState<number>(-12);
   const [selectedTraceNode, setSelectedTraceNode] = useState<TraceNode | null>({
-    id: 'REQ-01',
+    id: selectedReq.id,
     type: 'Requirement Baseline',
     level: 1,
     title: selectedReq.title,
     detail: selectedReq.improvedText || selectedReq.description,
     codeSymbol: 'src/services/aiEngine.ts::analyzeRequirement()',
-    slaStatus: 'VERIFIED (1.2s Tatkal Latency SLA)',
-    upstreamReq: 'BUSINESS-GOAL-01 (Tatkal Throughput)',
-    downstreamTC: 'TC-01 (Tatkal Concurrency Stress Test)',
-    domainContext: `${domainName} Core Transaction Pipeline`
+    slaStatus: `VERIFIED (< 1.5s ${domainName} SLA)`,
+    upstreamReq: `BUSINESS-GOAL-01 (${domainName} Service Goal)`,
+    downstreamTC: `TC-${selectedReq.id}-01 (${domainName} Stress Test)`,
+    domainContext: `${domainName} Core Operational Pipeline`
   });
   const [isInspectorModalOpen, setIsInspectorModalOpen] = useState<boolean>(false);
 

@@ -20,8 +20,8 @@ export const ModuleMultiPerspectiveReview: React.FC = () => {
       persona: 'Software Developer',
       score: 86,
       summary: 'Technical feasibility is high. REST API endpoints and data model structures are implementable.',
-      recommendations: ['Introduce Redis caching layer to offload high-concurrency database queries.'],
-      risksIdentified: ['Database lock contention under peak Tatkal / flash sale load.']
+      recommendations: ['Introduce Redis or in-memory caching layer to offload high-concurrency database queries.'],
+      risksIdentified: [`Database lock contention under peak ${currentProject.domain} transaction load.`]
     },
     {
       persona: 'QA Engineer',

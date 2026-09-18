@@ -21,53 +21,94 @@ export const ModuleDependencyGraph: React.FC = () => {
   const reqs = currentProject.requirements;
   const activeNode = reqs.find(r => r.id === selectedNodeId) || reqs[0] || null;
 
-  // Domain-specific dependency topology links
+  // Dynamically generate requirement dependency couplings based on actual requirements
   const getDomainDependencyLinks = () => {
-    switch (currentProject.domain) {
-      case 'Online Quiz Platform':
-        return [
-          { from: 'REQ-01', to: 'REQ-02', label: 'OAuth Auth → Proctor Engine', strength: 'Strong', color: '#EF4444' },
-          { from: 'REQ-02', to: 'REQ-03', label: 'Proctor Lock → IndexedDB Cache', strength: 'Strong', color: '#EF4444' },
-          { from: 'REQ-03', to: 'REQ-04', label: 'IndexedDB Sync → Auto-Evaluation', strength: 'Moderate', color: '#F59E0B' },
-          { from: 'REQ-04', to: 'REQ-05', label: 'Score Evaluation → Real-time Leaderboard', strength: 'Moderate', color: '#F59E0B' },
-        ];
-      case 'Hospital Management':
-        return [
-          { from: 'REQ-01', to: 'REQ-02', label: 'Patient Triage → EHR Record Lock', strength: 'Strong', color: '#EF4444' },
-          { from: 'REQ-02', to: 'REQ-03', label: 'EHR Access → Doctor Consultation Queue', strength: 'Moderate', color: '#F59E0B' },
-          { from: 'REQ-03', to: 'REQ-04', label: 'Prescription → Pharmacy Inventory Sync', strength: 'Strong', color: '#EF4444' },
-          { from: 'REQ-04', to: 'REQ-05', label: 'Discharge Bill → Insurance Claim Webhook', strength: 'Weak', color: '#10B981' },
-        ];
-      case 'E-Commerce Platform':
-        return [
-          { from: 'REQ-01', to: 'REQ-02', label: 'Search Engine → Product Catalog Cache', strength: 'Weak', color: '#10B981' },
-          { from: 'REQ-02', to: 'REQ-03', label: 'Cart Checkout → Inventory Reservation Lock', strength: 'Strong', color: '#EF4444' },
-          { from: 'REQ-03', to: 'REQ-04', label: 'Inventory Lock → 3D-Secure Payment Gateway', strength: 'Strong', color: '#EF4444' },
-          { from: 'REQ-04', to: 'REQ-05', label: 'Payment Success → Logistics Dispatch Order', strength: 'Moderate', color: '#F59E0B' },
-        ];
-      case 'Banking / Fintech':
-        return [
-          { from: 'REQ-01', to: 'REQ-02', label: '2FA Auth → Account Balance Query', strength: 'Strong', color: '#EF4444' },
-          { from: 'REQ-02', to: 'REQ-03', label: 'Fund Transfer → AI Fraud Anomaly Check', strength: 'Strong', color: '#EF4444' },
-          { from: 'REQ-03', to: 'REQ-04', label: 'Fraud Clearance → Double-Entry Ledger Hash', strength: 'Strong', color: '#EF4444' },
-          { from: 'REQ-04', to: 'REQ-05', label: 'Settlement → SMS / Webhook Dispatcher', strength: 'Weak', color: '#10B981' },
-        ];
-      case 'Disaster Management':
-        return [
-          { from: 'REQ-01', to: 'REQ-02', label: 'SOS Alert Beacon → GPS Geofence Clustering', strength: 'Strong', color: '#EF4444' },
-          { from: 'REQ-02', to: 'REQ-03', label: 'Geofence Cluster → Offline Mesh Sync', strength: 'Moderate', color: '#F59E0B' },
-          { from: 'REQ-03', to: 'REQ-04', label: 'Rescue Routing → Hospital Bed Capacity Dispatch', strength: 'Strong', color: '#EF4444' },
-          { from: 'REQ-04', to: 'REQ-05', label: 'Rescue Status → Emergency Broadcast SMS', strength: 'Weak', color: '#10B981' },
-        ];
-      case 'Railway Reservation':
-      default:
-        return [
-          { from: 'REQ-01', to: 'REQ-02', label: 'Tatkal Booking Engine → Seat Concurrency Lock', strength: 'Strong', color: '#EF4444' },
-          { from: 'REQ-02', to: 'REQ-03', label: 'Seat Lock → Payment Gateway Webhook', strength: 'Strong', color: '#EF4444' },
-          { from: 'REQ-03', to: 'REQ-04', label: 'Payment Settlement → PNR Allocation Kernel', strength: 'Moderate', color: '#F59E0B' },
-          { from: 'REQ-04', to: 'REQ-05', label: 'PNR Confirmation → SMS / Email Dispatcher', strength: 'Weak', color: '#10B981' },
-        ];
+    if (reqs.length <= 1) return [];
+
+    const isPredefined = (currentProject.id.startsWith('proj-sample') || currentProject.id.startsWith('proj-railway')) && reqs.length >= 4;
+
+    if (isPredefined) {
+      switch (currentProject.domain) {
+        case 'Online Quiz Platform':
+          return [
+            { from: reqs[0].id, to: reqs[1].id, label: 'OAuth Auth → Proctor Engine', strength: 'Strong', color: '#EF4444' },
+            { from: reqs[1].id, to: reqs[2].id, label: 'Proctor Lock → IndexedDB Cache', strength: 'Strong', color: '#EF4444' },
+            { from: reqs[2].id, to: reqs[3].id, label: 'IndexedDB Sync → Auto-Evaluation', strength: 'Moderate', color: '#F59E0B' },
+            { from: reqs[3].id, to: reqs[4]?.id || reqs[0].id, label: 'Score Evaluation → Real-time Leaderboard', strength: 'Moderate', color: '#F59E0B' },
+          ];
+        case 'Hospital Management':
+          return [
+            { from: reqs[0].id, to: reqs[1].id, label: 'Patient Triage → EHR Record Lock', strength: 'Strong', color: '#EF4444' },
+            { from: reqs[1].id, to: reqs[2].id, label: 'EHR Access → Doctor Consultation Queue', strength: 'Moderate', color: '#F59E0B' },
+            { from: reqs[2].id, to: reqs[3].id, label: 'Prescription → Pharmacy Inventory Sync', strength: 'Strong', color: '#EF4444' },
+            { from: reqs[3].id, to: reqs[4]?.id || reqs[0].id, label: 'Discharge Bill → Insurance Claim Webhook', strength: 'Weak', color: '#10B981' },
+          ];
+        case 'E-Commerce Platform':
+          return [
+            { from: reqs[0].id, to: reqs[1].id, label: 'Search Engine → Product Catalog Cache', strength: 'Weak', color: '#10B981' },
+            { from: reqs[1].id, to: reqs[2].id, label: 'Cart Checkout → Inventory Reservation Lock', strength: 'Strong', color: '#EF4444' },
+            { from: reqs[2].id, to: reqs[3].id, label: 'Inventory Lock → 3D-Secure Payment Gateway', strength: 'Strong', color: '#EF4444' },
+            { from: reqs[3].id, to: reqs[4]?.id || reqs[0].id, label: 'Payment Success → Logistics Dispatch Order', strength: 'Moderate', color: '#F59E0B' },
+          ];
+        case 'Banking / Fintech':
+          return [
+            { from: reqs[0].id, to: reqs[1].id, label: '2FA Auth → Account Balance Query', strength: 'Strong', color: '#EF4444' },
+            { from: reqs[1].id, to: reqs[2].id, label: 'Fund Transfer → AI Fraud Anomaly Check', strength: 'Strong', color: '#EF4444' },
+            { from: reqs[2].id, to: reqs[3].id, label: 'Fraud Clearance → Double-Entry Ledger Hash', strength: 'Strong', color: '#EF4444' },
+            { from: reqs[3].id, to: reqs[4]?.id || reqs[0].id, label: 'Settlement → SMS / Webhook Dispatcher', strength: 'Weak', color: '#10B981' },
+          ];
+        case 'Disaster Management':
+          return [
+            { from: reqs[0].id, to: reqs[1].id, label: 'SOS Alert Beacon → GPS Geofence Clustering', strength: 'Strong', color: '#EF4444' },
+            { from: reqs[1].id, to: reqs[2].id, label: 'Geofence Cluster → Offline Mesh Sync', strength: 'Moderate', color: '#F59E0B' },
+            { from: reqs[2].id, to: reqs[3].id, label: 'Rescue Routing → Hospital Bed Capacity Dispatch', strength: 'Strong', color: '#EF4444' },
+            { from: reqs[3].id, to: reqs[4]?.id || reqs[0].id, label: 'Rescue Status → Emergency Broadcast SMS', strength: 'Weak', color: '#10B981' },
+          ];
+        case 'Railway Reservation':
+          return [
+            { from: reqs[0].id, to: reqs[1].id, label: 'Tatkal Booking Engine → Seat Concurrency Lock', strength: 'Strong', color: '#EF4444' },
+            { from: reqs[1].id, to: reqs[2].id, label: 'Seat Lock → Payment Gateway Webhook', strength: 'Strong', color: '#EF4444' },
+            { from: reqs[2].id, to: reqs[3].id, label: 'Payment Settlement → PNR Allocation Kernel', strength: 'Moderate', color: '#F59E0B' },
+            { from: reqs[3].id, to: reqs[4]?.id || reqs[0].id, label: 'PNR Confirmation → SMS / Email Dispatcher', strength: 'Weak', color: '#10B981' },
+          ];
+      }
     }
+
+    // Dynamic DAG generation for any domain and custom requirements:
+    const dynamicLinks: { from: string; to: string; label: string; strength: 'Strong' | 'Moderate' | 'Weak'; color: string }[] = [];
+    
+    // Link sequential requirements in operational pipeline
+    for (let i = 0; i < reqs.length - 1; i++) {
+      const fromReq = reqs[i];
+      const toReq = reqs[i + 1];
+      const isStrong = fromReq.priority === 'Critical' || toReq.priority === 'Critical';
+      const isModerate = fromReq.priority === 'High' || toReq.priority === 'High';
+      const strength: 'Strong' | 'Moderate' | 'Weak' = isStrong ? 'Strong' : isModerate ? 'Moderate' : 'Weak';
+      const color = strength === 'Strong' ? '#EF4444' : strength === 'Moderate' ? '#F59E0B' : '#10B981';
+
+      dynamicLinks.push({
+        from: fromReq.id,
+        to: toReq.id,
+        label: `${fromReq.title.slice(0, 24)} → ${toReq.title.slice(0, 24)}`,
+        strength,
+        color
+      });
+    }
+
+    // Link Functional requirements to Technical / Non-functional requirements (e.g. concurrency or security)
+    const nfrReqs = reqs.filter(r => r.category === 'Non-functional' || r.category === 'Technical');
+    const funcReqs = reqs.filter(r => r.category === 'Functional');
+    if (nfrReqs.length > 0 && funcReqs.length > 0 && dynamicLinks.length < 6) {
+      dynamicLinks.push({
+        from: funcReqs[0].id,
+        to: nfrReqs[0].id,
+        label: `${funcReqs[0].title.slice(0, 20)} → ${nfrReqs[0].title.slice(0, 20)} (SLA Guard)`,
+        strength: 'Strong',
+        color: '#EF4444'
+      });
+    }
+
+    return dynamicLinks;
   };
 
   const links = getDomainDependencyLinks();
@@ -190,13 +231,19 @@ export const ModuleDependencyGraph: React.FC = () => {
               </p>
 
               <div className="p-3.5 rounded-xl bg-black/60 border border-white/10 space-y-2">
-                <span className="text-cyan-400 font-bold block text-[11px]">Upstream Prerequisites:</span>
-                <p className="text-slate-300 text-[11px]">Requires Core Identity Verification and OAuth 2.0 Token Exchange.</p>
+                <span className="text-cyan-400 font-bold block text-[11px]">Upstream Traceability:</span>
+                <p className="text-slate-300 text-[11px]">
+                  {currentProject.useCases.filter(u => u.requirementId === activeNode.id).length > 0
+                    ? `Linked to ${currentProject.useCases.filter(u => u.requirementId === activeNode.id).length} Use Case specification(s).`
+                    : `Baseline requirement entity for ${currentProject.domain}.`}
+                </p>
               </div>
 
               <div className="p-3.5 rounded-xl bg-black/60 border border-white/10 space-y-2">
                 <span className="text-purple-400 font-bold block text-[11px]">Downstream Impact:</span>
-                <p className="text-slate-300 text-[11px]">Propagates to 3 User Stories, 4 Test Cases, and 1 Microservice Database Entity.</p>
+                <p className="text-slate-300 text-[11px]">
+                  Propagates to {currentProject.userStories.filter(s => s.requirementId === activeNode.id).length} User Story, {currentProject.testCases.filter(t => t.requirementId === activeNode.id).length} Test Cases, and RTM verification matrix.
+                </p>
               </div>
 
               <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-[11px]">

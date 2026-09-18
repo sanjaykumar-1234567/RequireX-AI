@@ -41,7 +41,7 @@ export const ModuleUpload: React.FC = () => {
           return;
         }
 
-        const extracted = AIEngine.extractRequirements(sanitized, currentProject.domain);
+        const extracted = AIEngine.extractRequirements(sanitized, currentProject.domain, currentProject.requirements);
         if (extracted.length === 0) {
           setErrorMessage('No valid atomic requirements could be extracted. Please enter statements with at least 8 characters.');
           setIsProcessing(false);
@@ -77,7 +77,7 @@ export const ModuleUpload: React.FC = () => {
         return;
       }
 
-      const extracted = AIEngine.extractRequirements(cleanText, currentProject.domain);
+      const extracted = AIEngine.extractRequirements(cleanText, currentProject.domain, currentProject.requirements);
       
       if (extracted.length === 0) {
         setErrorMessage(`No valid requirements could be parsed from "${file.name}". Please check the document content.`);
@@ -299,6 +299,13 @@ export const ModuleUpload: React.FC = () => {
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-slate-300 border border-white/10 font-mono">
                       {req.category}
                     </span>
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold font-mono ${
+                      req.status === 'USER_APPROVED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                      req.status === 'USER_EDITED' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' :
+                      'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    }`}>
+                      {req.status || 'NEEDS_REVIEW'}
+                    </span>
                   </div>
 
                   <div className="flex items-center space-x-2">
@@ -321,8 +328,18 @@ export const ModuleUpload: React.FC = () => {
                   </div>
                 </div>
 
+                {req.tags && req.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {req.tags.map((tag, tIdx) => (
+                      <span key={tIdx} className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-cyan-950/40 text-cyan-300 border border-cyan-800/30">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 <p className="text-xs text-slate-200 font-medium leading-relaxed font-mono">
-                  {req.description}
+                  {req.rawSource || req.description}
                 </p>
 
                 {req.issues.length > 0 && (

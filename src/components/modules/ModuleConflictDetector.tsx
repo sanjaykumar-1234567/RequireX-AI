@@ -110,9 +110,11 @@ export const ModuleConflictDetector: React.FC = () => {
   if (!currentProject) return null;
 
   const dynamicConflicts = AIEngine.detectConflictsAndDuplicates(currentProject.requirements, currentProject.domain);
+  // Only use DOMAIN_CONFLICTS seed if this is an explicit predefined demo project and dynamic returns nothing
+  const isPredefinedDemo = currentProject.id.startsWith('proj-sample') || currentProject.id.startsWith('proj-railway');
   const domainConflicts = dynamicConflicts.length > 0 
     ? dynamicConflicts 
-    : (DOMAIN_CONFLICTS[currentProject.domain] ?? DOMAIN_CONFLICTS['Railway Reservation System'] ?? []);
+    : (isPredefinedDemo ? (DOMAIN_CONFLICTS[currentProject.domain] || []) : []);
 
   const handleScan = () => {
     setScanning(true);
@@ -203,8 +205,12 @@ export const ModuleConflictDetector: React.FC = () => {
         {activeConflicts.length === 0 && (
           <div className="glass-card p-8 rounded-xl border border-emerald-500/30 text-center">
             <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto mb-3" />
-            <p className="text-sm font-bold text-emerald-300 font-mono">All Conflicts Resolved!</p>
-            <p className="text-xs text-slate-400 mt-1">No active requirement conflicts detected for this domain.</p>
+            <p className="text-sm font-bold text-emerald-300 font-mono">No Conflicts Detected</p>
+            <p className="text-xs text-slate-400 mt-1">
+              {currentProject.requirements.length === 0
+                ? 'No requirements available. Upload or enter requirements to continue.'
+                : `All ${currentProject.requirements.length} active requirements are semantically consistent and free of contradictions.`}
+            </p>
           </div>
         )}
 
@@ -279,23 +285,54 @@ export const ModuleConflictDetector: React.FC = () => {
         <h3 className="text-xs font-bold text-violet-300 font-mono flex items-center gap-2">
           <GitMerge className="h-4 w-4" /> SEMANTIC DUPLICATE REQUIREMENTS DETECTOR
         </h3>
-        <p className="text-xs text-slate-400">AI-powered NLP similarity scan across requirement statements. Pairs with cosine similarity &gt;0.82 flagged as potential duplicates.</p>
-        <div className="space-y-2">
-          {[
-            { reqA: 'REQ-01', reqB: 'REQ-09', sim: 88, note: 'Both describe user login/authentication flows with overlapping acceptance criteria.' },
-            { reqA: 'REQ-03', reqB: 'REQ-11', sim: 84, note: 'Notification system descriptions share 84% semantic overlap — possible consolidation candidate.' },
-          ].map((dup, i) => (
-            <div key={i} className="p-3 rounded-xl bg-violet-500/5 border border-violet-500/20 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-violet-300 font-mono text-xs font-bold">{dup.reqA}</span>
-                <ArrowRight className="h-3.5 w-3.5 text-slate-500" />
-                <span className="text-violet-300 font-mono text-xs font-bold">{dup.reqB}</span>
+        <p className="text-xs text-slate-400">AI-powered similarity scan across active requirement statements. Pairs with high semantic overlap flagged for consolidation.</p>
+        
+        {(() => {
+          const reqs = currentProject.requirements;
+          const dups: { reqA: string; reqB: string; sim: number; note: string }[] = [];
+          for (let i = 0; i < reqs.length; i++) {
+            for (let j = i + 1; j < reqs.length; j++) {
+              const textA = (reqs[i].description || reqs[i].title).toLowerCase();
+              const textB = (reqs[j].description || reqs[j].title).toLowerCase();
+              const wordsA = new Set(textA.split(/\s+/).filter(w => w.length > 3));
+              const wordsB = new Set(textB.split(/\s+/).filter(w => w.length > 3));
+              const intersection = [...wordsA].filter(w => wordsB.has(w));
+              const sim = Math.round((intersection.length / Math.max(wordsA.size, wordsB.size, 1)) * 100);
+              if (sim >= 55) {
+                dups.push({
+                  reqA: reqs[i].id,
+                  reqB: reqs[j].id,
+                  sim,
+                  note: `High semantic overlap between ${reqs[i].id} and ${reqs[j].id} (${reqs[i].title} & ${reqs[j].title}) — potential consolidation candidate.`
+                });
+              }
+            }
+          }
+
+          if (dups.length === 0) {
+            return (
+              <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-center">
+                <p className="text-xs font-mono text-emerald-300">✓ No semantic duplicates detected. All active requirements describe distinct system capabilities.</p>
               </div>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30 font-mono">{dup.sim}% Similar</span>
-              <p className="text-[11px] text-slate-400 flex-1 hidden md:block">{dup.note}</p>
+            );
+          }
+
+          return (
+            <div className="space-y-2">
+              {dups.map((dup, i) => (
+                <div key={i} className="p-3 rounded-xl bg-violet-500/5 border border-violet-500/20 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-violet-300 font-mono text-xs font-bold">{dup.reqA}</span>
+                    <ArrowRight className="h-3.5 w-3.5 text-slate-500" />
+                    <span className="text-violet-300 font-mono text-xs font-bold">{dup.reqB}</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30 font-mono">{dup.sim}% Similar</span>
+                  <p className="text-[11px] text-slate-400 flex-1 hidden md:block">{dup.note}</p>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          );
+        })()}
       </div>
     </div>
   );

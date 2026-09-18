@@ -11,10 +11,15 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { AIEngine } from '../../services/aiEngine';
+import { useProject } from '../../context/ProjectContext';
 import { RefinementGameItem } from '../../types';
 
 export const ModuleRefinementLab: React.FC = () => {
-  const challenges = AIEngine.generateRefinementChallenges();
+  const { currentProject } = useProject();
+  const challenges = AIEngine.generateRefinementChallenges(
+    currentProject?.requirements || [],
+    currentProject?.domain || 'General'
+  );
   const [currentIdx, setCurrentIdx] = useState<number>(0);
   const [userRewrite, setUserRewrite] = useState<string>('');
   const [submitted, setSubmitted] = useState<boolean>(false);
@@ -89,11 +94,24 @@ export const ModuleRefinementLab: React.FC = () => {
       </div>
 
       {/* Interactive Challenge Arena */}
+      {challenges.length === 0 ? (
+        <div className="glass-card p-12 rounded-2xl border border-white/10 text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mx-auto text-cyan-400">
+            <CheckCircle2 className="h-6 w-6" />
+          </div>
+          <h2 className="text-xl font-bold text-white">No Refinement Challenges Detected</h2>
+          <p className="text-slate-400 text-sm max-w-md mx-auto">
+            {!currentProject?.requirements || currentProject.requirements.length === 0 
+              ? 'No requirements available. Upload or enter requirements to generate interactive refinement challenges.'
+              : 'All active project requirements satisfy baseline clarity and testability criteria! No flawed statements require refinement.'}
+          </p>
+        </div>
+      ) : (
       <div className="glass-card p-6 sm:p-8 rounded-2xl border border-white/10 space-y-8">
         <div className="flex items-center justify-between border-b border-white/10 pb-4">
-          <span className="text-xs font-mono font-bold text-cyan-400">DOMAIN: {activeChallenge.domain}</span>
+          <span className="text-xs font-mono font-bold text-cyan-400">DOMAIN: {activeChallenge?.domain || 'General'}</span>
           <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
-            Original Flawed Score: {activeChallenge.originalScore} / 100
+            Original Flawed Score: {activeChallenge?.originalScore || 0} / 100
           </span>
         </div>
 
@@ -172,11 +190,12 @@ export const ModuleRefinementLab: React.FC = () => {
             {/* Reference Golden Standard Rewrite */}
             <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/40 space-y-2">
               <span className="text-emerald-400 font-bold block text-[11px]">GOLDEN STANDARD REFERENCE IEEE 830 REWRITE:</span>
-              <p className="text-slate-200 font-sans">{activeChallenge.referenceIdealText}</p>
+              <p className="text-slate-200 font-sans">{activeChallenge?.referenceIdealText || ''}</p>
             </div>
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

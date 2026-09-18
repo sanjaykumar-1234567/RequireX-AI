@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
-import { 
-  BarChart3, 
-  PieChart, 
-  TrendingUp, 
-  ShieldAlert, 
-  FileCheck, 
-  CheckSquare, 
-  BookOpenCheck, 
-  Zap, 
-  Activity, 
-  Layers, 
-  AlertTriangle, 
-  Award, 
+import {
+  BarChart3,
+  PieChart,
+  TrendingUp,
+  ShieldAlert,
+  FileCheck,
+  CheckSquare,
+  BookOpenCheck,
+  Zap,
+  Activity,
+  Layers,
+  AlertTriangle,
+  Award,
   Sparkles,
   Flame
 } from 'lucide-react';
@@ -30,10 +30,10 @@ export const ModuleAnalytics: React.FC = () => {
   const testsCount = currentProject.testCases.length;
   const highRisksCount = currentProject.risks.length;
 
-  const qualityScore = totalReqs > 0 ? Math.round(((totalReqs - ambiguousReqs) / totalReqs) * 100) : 100;
-  const testCoverage = totalReqs > 0 ? Math.min(100, Math.round((testsCount / Math.max(totalReqs, 1)) * 25)) : 100;
-  const traceabilityScore = totalReqs > 0 && storiesCount > 0 ? 100 : 80;
-  const completenessScore = Math.max(70, qualityScore - 5);
+  const qualityScore = totalReqs > 0 ? Math.round(((totalReqs - ambiguousReqs) / totalReqs) * 100) : null;
+  const testCoverage = totalReqs > 0 ? Math.min(100, Math.round((testsCount / Math.max(totalReqs, 1)) * 100)) : null;
+  const traceabilityScore = totalReqs > 0 ? (storiesCount > 0 ? Math.min(100, Math.round((storiesCount / totalReqs) * 100)) : 0) : null;
+  const completenessScore = qualityScore !== null ? Math.max(0, qualityScore - (ambiguousReqs * 2)) : null;
 
   const mustCount = currentProject.requirements.filter(r => r.priority === 'Critical').length;
   const shouldCount = currentProject.requirements.filter(r => r.priority === 'High').length;
@@ -41,18 +41,18 @@ export const ModuleAnalytics: React.FC = () => {
   const wontCount = currentProject.requirements.filter(r => r.priority === 'Low').length;
 
   const moscowData = [
-    { label: 'Must Have', percent: totalReqs > 0 ? Math.round((mustCount / totalReqs) * 100) : 40, color: 'bg-red-500 shadow-neon-red', count: mustCount },
-    { label: 'Should Have', percent: totalReqs > 0 ? Math.round((shouldCount / totalReqs) * 100) : 30, color: 'bg-blue-500 shadow-neon-blue', count: shouldCount },
-    { label: 'Could Have', percent: totalReqs > 0 ? Math.round((couldCount / totalReqs) * 100) : 20, color: 'bg-cyan-400 shadow-neon-cyan', count: couldCount },
-    { label: "Won't Have", percent: totalReqs > 0 ? Math.round((wontCount / totalReqs) * 100) : 10, color: 'bg-violet-600 shadow-neon-violet', count: wontCount }
+    { label: 'Must Have', percent: totalReqs > 0 ? Math.round((mustCount / totalReqs) * 100) : 0, color: 'bg-red-500 shadow-neon-red', count: mustCount },
+    { label: 'Should Have', percent: totalReqs > 0 ? Math.round((shouldCount / totalReqs) * 100) : 0, color: 'bg-blue-500 shadow-neon-blue', count: shouldCount },
+    { label: 'Could Have', percent: totalReqs > 0 ? Math.round((couldCount / totalReqs) * 100) : 0, color: 'bg-cyan-400 shadow-neon-cyan', count: couldCount },
+    { label: "Won't Have", percent: totalReqs > 0 ? Math.round((wontCount / totalReqs) * 100) : 0, color: 'bg-violet-600 shadow-neon-violet', count: wontCount }
   ];
 
   const qualityDimensions = [
-    { name: 'Clarity & Precision', score: qualityScore, color: 'bg-blue-400 shadow-neon-blue' },
-    { name: 'Completeness', score: completenessScore, color: 'bg-violet-400 shadow-neon-violet' },
-    { name: 'Verifiability / Testability', score: Math.max(75, 100 - ambiguousReqs * 10), color: 'bg-red-400 shadow-neon-red' },
-    { name: 'Bi-directional Traceability', score: traceabilityScore, color: 'bg-cyan-400 shadow-neon-cyan' },
-    { name: 'Consistency & Conflict-Free', score: Math.max(80, 100 - (ambiguousReqs > 0 ? 8 : 0)), color: 'bg-violet-500 shadow-neon-violet' }
+    { name: 'Clarity & Precision', score: qualityScore !== null ? qualityScore : 'Insufficient data', color: 'bg-blue-400 shadow-neon-blue' },
+    { name: 'Completeness', score: completenessScore !== null ? completenessScore : 'Insufficient data', color: 'bg-violet-400 shadow-neon-violet' },
+    { name: 'Verifiability / Testability', score: totalReqs > 0 ? Math.max(0, 100 - ambiguousReqs * 10) : 'Insufficient data', color: 'bg-red-400 shadow-neon-red' },
+    { name: 'Bi-directional Traceability', score: traceabilityScore !== null ? traceabilityScore : 'Insufficient data', color: 'bg-cyan-400 shadow-neon-cyan' },
+    { name: 'Consistency & Conflict-Free', score: totalReqs > 0 ? Math.max(0, 100 - (ambiguousReqs * 5)) : 'Insufficient data', color: 'bg-violet-500 shadow-neon-violet' }
   ];
 
   return (
@@ -73,7 +73,7 @@ export const ModuleAnalytics: React.FC = () => {
         <div className="flex items-center gap-3">
           <span className="px-4 py-2 rounded-xl bg-violet-500/20 border border-violet-400/50 text-violet-300 text-xs font-mono font-bold flex items-center gap-2 shadow-neon-violet">
             <Sparkles className="h-3.5 w-3.5 text-violet-300" />
-            98% Enterprise Quality
+            {qualityScore !== null ? `${qualityScore}% Verified Health` : 'Insufficient data'}
           </span>
         </div>
       </div>
@@ -84,9 +84,9 @@ export const ModuleAnalytics: React.FC = () => {
           { label: 'Total Reqs', value: totalReqs, color: 'text-blue-400' },
           { label: 'Functional', value: funcReqs, color: 'text-violet-400' },
           { label: 'Non-Functional', value: nonFuncReqs, color: 'text-amber-400' },
-          { label: 'Quality Score', value: `${qualityScore}%`, color: 'text-emerald-400' },
-          { label: 'Test Coverage', value: `${testCoverage}%`, color: 'text-red-400' },
-          { label: 'Traceability', value: `${traceabilityScore}%`, color: 'text-cyan-400' },
+          { label: 'Quality Score', value: qualityScore !== null ? `${qualityScore}%` : 'N/A', color: 'text-emerald-400' },
+          { label: 'Test Coverage', value: testCoverage !== null ? `${testCoverage}%` : 'N/A', color: 'text-red-400' },
+          { label: 'Traceability', value: traceabilityScore !== null ? `${traceabilityScore}%` : 'N/A', color: 'text-cyan-400' },
           { label: 'Ambiguities', value: ambiguousReqs, color: ambiguousReqs > 0 ? 'text-red-400' : 'text-emerald-400' },
           { label: 'High Risks', value: highRisksCount, color: 'text-amber-400' },
         ].map((item, i) => (
@@ -99,7 +99,7 @@ export const ModuleAnalytics: React.FC = () => {
 
       {/* 3 Core Analytical Visual Charts - Highlighting Blue, Violet, and Red Neon */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* Chart 1: Functional vs Non-Functional - Cobalt Blue */}
         <div className="glass-card neon-card-blue p-6 sm:p-8 rounded-2xl border border-blue-500/40 space-y-6 flex flex-col justify-between shadow-neon-blue">
           <div className="space-y-2">
@@ -112,20 +112,20 @@ export const ModuleAnalytics: React.FC = () => {
             <div className="space-y-1.5 font-mono text-xs">
               <div className="flex justify-between text-slate-200">
                 <span>Functional Requirements:</span>
-                <span className="text-blue-300 font-bold">{funcReqs} ({totalReqs > 0 ? Math.round((funcReqs/totalReqs)*100) : 0}%)</span>
+                <span className="text-blue-300 font-bold">{funcReqs} ({totalReqs > 0 ? Math.round((funcReqs / totalReqs) * 100) : 0}%)</span>
               </div>
               <div className="w-full h-3 bg-black/60 rounded-full overflow-hidden border border-white/10">
-                <div className="h-full bg-blue-500 rounded-full shadow-neon-blue" style={{ width: `${totalReqs > 0 ? Math.round((funcReqs/totalReqs)*100) : 0}%` }} />
+                <div className="h-full bg-blue-500 rounded-full shadow-neon-blue" style={{ width: `${totalReqs > 0 ? Math.round((funcReqs / totalReqs) * 100) : 0}%` }} />
               </div>
             </div>
 
             <div className="space-y-1.5 font-mono text-xs">
               <div className="flex justify-between text-slate-200">
                 <span>Non-Functional & Technical:</span>
-                <span className="text-violet-400 font-bold">{nonFuncReqs} ({totalReqs > 0 ? Math.round((nonFuncReqs/totalReqs)*100) : 0}%)</span>
+                <span className="text-violet-400 font-bold">{nonFuncReqs} ({totalReqs > 0 ? Math.round((nonFuncReqs / totalReqs) * 100) : 0}%)</span>
               </div>
               <div className="w-full h-3 bg-black/60 rounded-full overflow-hidden border border-white/10">
-                <div className="h-full bg-violet-500 rounded-full shadow-neon-violet" style={{ width: `${totalReqs > 0 ? Math.round((nonFuncReqs/totalReqs)*100) : 0}%` }} />
+                <div className="h-full bg-violet-500 rounded-full shadow-neon-violet" style={{ width: `${totalReqs > 0 ? Math.round((nonFuncReqs / totalReqs) * 100) : 0}%` }} />
               </div>
             </div>
           </div>

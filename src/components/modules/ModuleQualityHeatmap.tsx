@@ -21,27 +21,73 @@ export const ModuleQualityHeatmap: React.FC = () => {
   if (!currentProject) return null;
 
   const rows: QualityHeatmapRow[] = currentProject.requirements.map((req) => {
-    const hasIssue = req.issues.length > 0;
+    // Determine quality scores dynamically based on actual issues and links
+    let compPenalty = 0;
+    let clarityPenalty = 0;
+    let testPenalty = 0;
+    let verifyPenalty = 0;
+    let tracePenalty = 0;
+    let consistPenalty = 0;
+
+    for (const issue of req.issues) {
+      const severityFactor = issue.severity === 'Critical' ? 25 : issue.severity === 'High' ? 18 : issue.severity === 'Medium' ? 10 : 5;
+      const t = issue.type;
+      if (t.includes('Incomplete') || t.includes('Missing Actor') || t.includes('Missing Condition') || t.includes('Missing Inputs') || t.includes('Missing Business Rule') || t.includes('Missing Error') || t.includes('Missing Non-Functional')) {
+        compPenalty += severityFactor;
+      }
+      if (t.includes('Ambiguous') || t.includes('Ambiguity') || t.includes('Vague') || t.includes('Weak') || t.includes('Non-Atomic')) {
+        clarityPenalty += severityFactor;
+      }
+      if (t.includes('Non-testable') || t.includes('Non-Verifiable') || t.includes('Unclear Quantitative')) {
+        testPenalty += severityFactor;
+        verifyPenalty += severityFactor;
+      }
+      if (t.includes('Feasibility') || t.includes('Security Gap') || t.includes('Performance Gap')) {
+        verifyPenalty += severityFactor;
+      }
+      if (t.includes('Conflicting') || t.includes('Inconsistency') || t.includes('Duplicate')) {
+        consistPenalty += severityFactor;
+      }
+    }
+
+    // Check actual traceability
+    const hasStory = currentProject.userStories.some(s => s.requirementId === req.id);
+    const hasTest = currentProject.testCases.some(t => t.requirementId === req.id);
+    if (!hasStory) tracePenalty += 12;
+    if (!hasTest) tracePenalty += 15;
+
+    const completeness = Math.max(35, Math.min(100, 100 - compPenalty));
+    const clarity = Math.max(35, Math.min(100, 100 - clarityPenalty));
+    const testability = Math.max(35, Math.min(100, 100 - testPenalty));
+    const verifiability = Math.max(35, Math.min(100, 100 - verifyPenalty));
+    const traceability = Math.max(35, Math.min(100, 100 - tracePenalty));
+    const consistency = Math.max(35, Math.min(100, 100 - consistPenalty));
+
+    const overallScore = Math.round((completeness + clarity + testability + verifiability + traceability + consistency) / 6);
+    const hasCritical = req.issues.some(i => i.severity === 'Critical' || i.severity === 'High');
+    const volatility = (overallScore < 75 || hasCritical) ? 'HIGH' : 'LOW';
+
     return {
       reqId: req.id,
       title: req.title,
-      completeness: hasIssue ? 68 : 95,
-      clarity: hasIssue ? 58 : 97,
-      testability: hasIssue ? 63 : 93,
-      verifiability: hasIssue ? 74 : 96,
-      traceability: hasIssue ? 82 : 98,
-      consistency: hasIssue ? 71 : 94,
-      overallScore: hasIssue ? 69 : 95,
-      volatility: hasIssue ? 'HIGH' : 'LOW'
+      completeness,
+      clarity,
+      testability,
+      verifiability,
+      traceability,
+      consistency,
+      overallScore,
+      volatility
     };
   });
 
-  const overallAvg = Math.round(rows.reduce((a, r) => a + r.overallScore, 0) / (rows.length || 1));
+  const overallAvg = rows.length > 0 ? Math.round(rows.reduce((a, r) => a + r.overallScore, 0) / rows.length) : 0;
   const highVolatility = rows.filter(r => r.volatility === 'HIGH').length;
   const lowVolatility = rows.filter(r => r.volatility === 'LOW').length;
   const dimAverages = DIMENSION_LABELS.map((_, i) => {
+    if (rows.length === 0) return 0;
     const vals = [rows.map(r => r.completeness), rows.map(r => r.clarity), rows.map(r => r.testability), rows.map(r => r.verifiability), rows.map(r => r.traceability), rows.map(r => r.consistency)];
-    return Math.round(vals[i].reduce((a, b) => a + b, 0) / (vals[i].length || 1));
+    return Math.round(vals[i].reduce((a, b) => a + b, 0) / rows.length);
   });
 
   const getScoreColor = (score: number) => {
@@ -145,7 +191,14 @@ export const ModuleQualityHeatmap: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5 text-xs font-mono">
-            {rows.map(row => (
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="py-8 text-center text-slate-400 font-sans">
+                  No requirements available. Upload or enter requirements to view the IEEE Quality Heatmap.
+                </td>
+              </tr>
+            ) : (
+              rows.map(row => (
               <tr
                 key={row.reqId}
                 onClick={() => setSelectedRow(selectedRow === row.reqId ? null : row.reqId)}
@@ -173,7 +226,8 @@ export const ModuleQualityHeatmap: React.FC = () => {
                   </span>
                 </td>
               </tr>
-            ))}
+            ))
+          )}
           </tbody>
         </table>
       </div>
